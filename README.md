@@ -11,7 +11,7 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 - 💾 **Automatic Backups** - Backs up existing configurations before changes
 - 🔄 **System Updates** - Complete apt update, upgrade, and cleanup
 - 📦 **NVM & Node.js** - Node Version Manager with latest LTS Node.js
-- 🤖 **Claude CLI** - Anthropic's Claude CLI for AI assistance
+- 🤖 **Claude Code** - Anthropic's official Claude Code CLI for AI-powered development
 - 📊 **System Monitoring** - htop for interactive process viewing
 - 🔥 **UFW Firewall** - Automated firewall configuration for security
 - 🔐 **SSH Hardening** - Secure SSH configuration for Coolify compatibility
@@ -22,18 +22,22 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 
 ### Full Installation (All Features)
 ```bash
-git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
+rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
 ```
 
 ### Security-First Installation (Firewall + SSH + Coolify)
 ```bash
-git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "10"' && sudo bash -c './setup.sh <<< "11"' && sudo bash -c './setup.sh <<< "12"'
+rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "10"' && sudo bash -c './setup.sh <<< "11"' && sudo bash -c './setup.sh <<< "12"'
 ```
 
-Or download and run with wget:
+Or download all files with wget:
 
 ```bash
-wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh -O setup.sh && chmod +x setup.sh && sudo ./setup.sh
+rm -rf server-config && mkdir -p server-config && cd server-config && \
+wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh && \
+wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/zshrc && \
+wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/p10k.zsh && \
+chmod +x setup.sh && sudo ./setup.sh
 ```
 
 Or if you have the files locally:
@@ -100,10 +104,10 @@ The script provides an interactive menu with the following options:
 - Installs latest LTS version of Node.js via NVM
 - Sets LTS as the default Node.js version
 - Configures for both root and main user
-- Required for Claude CLI and modern development
+- Required for Claude Code CLI and modern development
 
-### 8. Install Claude CLI
-- Installs Claude CLI globally via npm
+### 8. Install Claude Code CLI
+- Installs Claude Code CLI globally via npm (@anthropic-ai/claude-code)
 - Provides command-line access to Claude AI
 - Configures for both root and main user
 - Remember to run `claude login` after installation
@@ -178,7 +182,7 @@ Please select an option:
   5) Deploy configuration files (.zshrc & .p10k.zsh)
   6) Install NVM (Node Version Manager)
   7) Install Node.js (via NVM)
-  8) Install Claude CLI
+  8) Install Claude Code CLI
   9) Install htop
   10) Configure UFW Firewall (SSH only)
   11) Configure SSH for Coolify

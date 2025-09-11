@@ -455,9 +455,9 @@ install_claude() {
         
         # Install Claude CLI globally via npm
         if [ "$user" = "root" ]; then
-            bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-cli"
+            bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-code"
         else
-            sudo -u "$user" bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-cli"
+            sudo -u "$user" bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-code"
         fi
         
         print_success "Claude CLI installed for $user"
