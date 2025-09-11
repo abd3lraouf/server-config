@@ -1,0 +1,27 @@
+# Backup directories
+.config-backup-*
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Python cache (for aptsources-cleanup)
+__pycache__/
+*.pyc
+
+# Log files
+*.log
+
+# Downloaded files (will be fetched during setup)
+aptsources-cleanup.pyz
