@@ -334,7 +334,287 @@ deploy_configs() {
     fi
 }
 
-# Function 5: Clean APT sources
+# Function 5: System Update
+system_update() {
+    print_status "Updating system packages..."
+    
+    # Update package lists
+    sudo apt update
+    
+    # Upgrade all packages
+    print_status "Upgrading installed packages (this may take a while)..."
+    sudo apt upgrade -y
+    
+    # Remove unnecessary packages
+    print_status "Cleaning up unnecessary packages..."
+    sudo apt autoremove -y
+    sudo apt autoclean -y
+    
+    print_success "System update completed"
+}
+
+# Function 6: Install NVM (Node Version Manager)
+install_nvm() {
+    print_status "Installing NVM (Node Version Manager)..."
+    
+    install_nvm_for_user() {
+        local user="$1"
+        local home_dir
+        
+        if [ "$user" = "root" ]; then
+            home_dir="/root"
+        else
+            home_dir="/home/$user"
+        fi
+        
+        print_status "Installing NVM for $user..."
+        
+        # Download and install NVM
+        if [ "$user" = "root" ]; then
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+        else
+            sudo -u "$user" bash -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'
+        fi
+        
+        # Add NVM to .zshrc if not already present
+        if ! grep -q "NVM_DIR" "$home_dir/.zshrc" 2>/dev/null; then
+            cat >> "$home_dir/.zshrc" << 'EOF'
+
+# NVM Configuration
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+EOF
+            if [ "$user" != "root" ]; then
+                chown "$user:$user" "$home_dir/.zshrc"
+            fi
+        fi
+        
+        print_success "NVM installed for $user"
+    }
+    
+    # Install for root
+    install_nvm_for_user "root"
+    
+    # Install for main user
+    if [ -n "$MAIN_USER" ]; then
+        install_nvm_for_user "$MAIN_USER"
+    fi
+}
+
+# Function 7: Install Node.js
+install_nodejs() {
+    print_status "Installing Node.js via NVM..."
+    
+    install_node_for_user() {
+        local user="$1"
+        local home_dir
+        
+        if [ "$user" = "root" ]; then
+            home_dir="/root"
+        else
+            home_dir="/home/$user"
+        fi
+        
+        print_status "Installing Node.js LTS for $user..."
+        
+        # Source NVM and install Node.js
+        if [ "$user" = "root" ]; then
+            bash -c "source $home_dir/.nvm/nvm.sh && nvm install --lts && nvm use --lts && nvm alias default node"
+        else
+            sudo -u "$user" bash -c "source $home_dir/.nvm/nvm.sh && nvm install --lts && nvm use --lts && nvm alias default node"
+        fi
+        
+        print_success "Node.js LTS installed for $user"
+    }
+    
+    # Install for root
+    install_node_for_user "root"
+    
+    # Install for main user
+    if [ -n "$MAIN_USER" ]; then
+        install_node_for_user "$MAIN_USER"
+    fi
+}
+
+# Function 8: Install Claude CLI
+install_claude() {
+    print_status "Installing Claude CLI..."
+    
+    install_claude_for_user() {
+        local user="$1"
+        local home_dir
+        
+        if [ "$user" = "root" ]; then
+            home_dir="/root"
+        else
+            home_dir="/home/$user"
+        fi
+        
+        print_status "Installing Claude CLI for $user..."
+        
+        # Install Claude CLI globally via npm
+        if [ "$user" = "root" ]; then
+            bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-cli"
+        else
+            sudo -u "$user" bash -c "source $home_dir/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-cli"
+        fi
+        
+        print_success "Claude CLI installed for $user"
+        print_warning "Remember to run 'claude login' to authenticate"
+    }
+    
+    # Install for root
+    install_claude_for_user "root"
+    
+    # Install for main user
+    if [ -n "$MAIN_USER" ]; then
+        install_claude_for_user "$MAIN_USER"
+    fi
+}
+
+# Function 9: Install htop
+install_htop() {
+    print_status "Installing htop system monitor..."
+    
+    sudo apt update
+    sudo apt install -y htop
+    
+    print_success "htop installed successfully"
+}
+
+# Function 10: Configure UFW Firewall
+configure_ufw() {
+    print_status "Configuring UFW firewall..."
+    
+    # Install UFW if not present
+    if ! command -v ufw &> /dev/null; then
+        sudo apt update
+        sudo apt install -y ufw
+    fi
+    
+    # Reset UFW to defaults
+    print_status "Resetting UFW to defaults..."
+    echo "y" | sudo ufw --force reset
+    
+    # Set default policies
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    
+    # Allow SSH (port 22)
+    print_status "Allowing SSH access..."
+    sudo ufw allow ssh
+    
+    # Enable UFW
+    print_status "Enabling UFW..."
+    echo "y" | sudo ufw --force enable
+    
+    # Show status
+    sudo ufw status verbose
+    
+    print_success "UFW firewall configured and enabled"
+    print_warning "Only SSH (port 22) is allowed. Configure additional ports as needed."
+}
+
+# Function 11: Configure SSH for Coolify
+configure_ssh_coolify() {
+    print_status "Configuring SSH for Coolify compatibility..."
+    
+    # Backup original SSH config
+    backup_file "/etc/ssh/sshd_config"
+    
+    # Configure SSH settings
+    print_status "Updating SSH configuration..."
+    
+    # Check if PermitRootLogin is already configured
+    if grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
+        sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+    else
+        echo "PermitRootLogin prohibit-password" | sudo tee -a /etc/ssh/sshd_config
+    fi
+    
+    # Check if PubkeyAuthentication is already configured
+    if grep -q "^PubkeyAuthentication" /etc/ssh/sshd_config; then
+        sudo sed -i 's/^PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    else
+        echo "PubkeyAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+    fi
+    
+    # Generate SSH key for Coolify if it doesn't exist
+    if [ ! -f ~/.ssh/id_ed25519 ]; then
+        print_status "Generating SSH key for server..."
+        ssh-keygen -t ed25519 -a 100 -f ~/.ssh/id_ed25519 -q -N "" -C "root@$(hostname)"
+        
+        # Add to authorized_keys
+        cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+        chmod 600 ~/.ssh/authorized_keys
+        chmod 700 ~/.ssh
+        
+        print_success "SSH key generated and added to authorized_keys"
+    else
+        print_warning "SSH key already exists"
+    fi
+    
+    # Restart SSH service
+    print_status "Restarting SSH service..."
+    if systemctl is-active --quiet ssh; then
+        sudo systemctl restart ssh
+    elif systemctl is-active --quiet sshd; then
+        sudo systemctl restart sshd
+    else
+        print_error "Could not detect SSH service"
+    fi
+    
+    print_success "SSH configured for Coolify"
+    print_warning "Make sure you have your SSH keys backed up before logging out!"
+}
+
+# Function 12: Install Coolify
+install_coolify() {
+    print_status "Installing Coolify..."
+    
+    # Check if Docker is installed
+    if ! command -v docker &> /dev/null; then
+        print_warning "Docker will be installed as part of Coolify installation"
+    fi
+    
+    # Prepare Coolify directories
+    print_status "Preparing Coolify installation..."
+    sudo mkdir -p /data/coolify/ssh/keys
+    
+    # Run Coolify installation script
+    print_status "Running Coolify installation script..."
+    curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash
+    
+    # Generate Coolify SSH keys if needed
+    if [ ! -f /data/coolify/ssh/keys/id.root@host.docker.internal ]; then
+        print_status "Generating Coolify SSH keys..."
+        ssh-keygen -t ed25519 -a 100 \
+            -f /data/coolify/ssh/keys/id.root@host.docker.internal \
+            -q -N "" -C root@coolify
+        
+        # Set correct ownership
+        sudo chown 9999 /data/coolify/ssh/keys/id.root@host.docker.internal
+        
+        # Add public key to authorized_keys
+        cat /data/coolify/ssh/keys/id.root@host.docker.internal.pub >> ~/.ssh/authorized_keys
+    fi
+    
+    # Open firewall ports for Coolify
+    if command -v ufw &> /dev/null; then
+        print_status "Opening firewall ports for Coolify..."
+        sudo ufw allow 80/tcp comment 'Coolify HTTP'
+        sudo ufw allow 443/tcp comment 'Coolify HTTPS'
+        sudo ufw allow 8000/tcp comment 'Coolify Dashboard'
+        sudo ufw reload
+    fi
+    
+    print_success "Coolify installed successfully!"
+    print_warning "Access Coolify at: http://$(curl -s ifconfig.me):8000"
+    print_warning "Default login: admin@example.com"
+}
+
+# Function 13: Clean APT sources
 clean_apt_sources() {
     print_status "Cleaning APT sources..."
     
@@ -361,10 +641,18 @@ run_all() {
     print_status "Running all installation steps..."
     
     detect_main_user
+    system_update
+    install_htop
     install_zsh
     install_oh_my_zsh
     install_powerlevel10k
     deploy_configs
+    install_nvm
+    install_nodejs
+    install_claude
+    configure_ufw
+    configure_ssh_coolify
+    install_coolify
     clean_apt_sources
     
     print_success "All steps completed successfully!"
@@ -376,13 +664,21 @@ show_menu() {
     echo -e "${CYAN}║          Ubuntu Server Setup Script              ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
     echo -e "\n${MAGENTA}Please select an option:${NC}\n"
-    echo -e "  ${GREEN}1)${NC} Install Zsh (set as default shell)"
-    echo -e "  ${GREEN}2)${NC} Install Oh-My-Zsh"
-    echo -e "  ${GREEN}3)${NC} Install Powerlevel10k theme"
-    echo -e "  ${GREEN}4)${NC} Deploy configuration files (.zshrc & .p10k.zsh)"
-    echo -e "  ${GREEN}5)${NC} Clean APT sources"
-    echo -e "  ${GREEN}6)${NC} Run all steps"
-    echo -e "  ${GREEN}7)${NC} Exit"
+    echo -e "  ${GREEN}1)${NC} System Update (apt update & upgrade)"
+    echo -e "  ${GREEN}2)${NC} Install Zsh (set as default shell)"
+    echo -e "  ${GREEN}3)${NC} Install Oh-My-Zsh"
+    echo -e "  ${GREEN}4)${NC} Install Powerlevel10k theme"
+    echo -e "  ${GREEN}5)${NC} Deploy configuration files (.zshrc & .p10k.zsh)"
+    echo -e "  ${GREEN}6)${NC} Install NVM (Node Version Manager)"
+    echo -e "  ${GREEN}7)${NC} Install Node.js (via NVM)"
+    echo -e "  ${GREEN}8)${NC} Install Claude CLI"
+    echo -e "  ${GREEN}9)${NC} Install htop"
+    echo -e "  ${GREEN}10)${NC} Configure UFW Firewall (SSH only)"
+    echo -e "  ${GREEN}11)${NC} Configure SSH for Coolify"
+    echo -e "  ${GREEN}12)${NC} Install Coolify"
+    echo -e "  ${GREEN}13)${NC} Clean APT sources"
+    echo -e "  ${GREEN}14)${NC} Run all steps"
+    echo -e "  ${GREEN}15)${NC} Exit"
     echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
 }
 
@@ -399,33 +695,57 @@ main() {
     
     while true; do
         show_menu
-        read -p "Enter your choice [1-7]: " choice
+        read -p "Enter your choice [1-15]: " choice
         
         case $choice in
             1)
-                install_zsh
+                system_update
                 ;;
             2)
-                install_oh_my_zsh
+                install_zsh
                 ;;
             3)
-                install_powerlevel10k
+                install_oh_my_zsh
                 ;;
             4)
-                deploy_configs
+                install_powerlevel10k
                 ;;
             5)
-                clean_apt_sources
+                deploy_configs
                 ;;
             6)
-                run_all
+                install_nvm
                 ;;
             7)
+                install_nodejs
+                ;;
+            8)
+                install_claude
+                ;;
+            9)
+                install_htop
+                ;;
+            10)
+                configure_ufw
+                ;;
+            11)
+                configure_ssh_coolify
+                ;;
+            12)
+                install_coolify
+                ;;
+            13)
+                clean_apt_sources
+                ;;
+            14)
+                run_all
+                ;;
+            15)
                 print_status "Exiting..."
                 exit 0
                 ;;
             *)
-                print_error "Invalid option. Please select 1-7"
+                print_error "Invalid option. Please select 1-15"
                 ;;
         esac
         

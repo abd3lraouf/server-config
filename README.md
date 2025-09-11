@@ -9,14 +9,25 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 - 🔌 **Essential Plugins** - Auto-suggestions, syntax highlighting, and completions
 - 👥 **Multi-User Support** - Configures both root and main user
 - 💾 **Automatic Backups** - Backs up existing configurations before changes
+- 🔄 **System Updates** - Complete apt update, upgrade, and cleanup
+- 📦 **NVM & Node.js** - Node Version Manager with latest LTS Node.js
+- 🤖 **Claude CLI** - Anthropic's Claude CLI for AI assistance
+- 📊 **System Monitoring** - htop for interactive process viewing
+- 🔥 **UFW Firewall** - Automated firewall configuration for security
+- 🔐 **SSH Hardening** - Secure SSH configuration for Coolify compatibility
+- 🚀 **Coolify Platform** - Self-hosted Heroku/Netlify/Vercel alternative
 - 🧹 **APT Sources Cleanup** - Removes duplicate and obsolete APT sources
 
 ## Quick Start (One-liner)
 
-Clone and run directly from GitHub:
-
+### Full Installation (All Features)
 ```bash
 git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
+```
+
+### Security-First Installation (Firewall + SSH + Coolify)
+```bash
+git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "10"' && sudo bash -c './setup.sh <<< "11"' && sudo bash -c './setup.sh <<< "12"'
 ```
 
 Or download and run with wget:
@@ -50,36 +61,94 @@ Place these files in the same directory as `setup.sh`:
 
 The script provides an interactive menu with the following options:
 
-### 1. Install Zsh
+### 1. System Update
+- Runs `apt update` to refresh package lists
+- Performs `apt upgrade -y` to update all packages
+- Executes `apt autoremove` and `apt autoclean` for cleanup
+- Essential first step for any new server setup
+
+### 2. Install Zsh
 - Installs Zsh package
 - Sets Zsh as default shell for root and main user
 - Automatically detects the main non-root user
 
-### 2. Install Oh-My-Zsh
+### 3. Install Oh-My-Zsh
 - Downloads and installs Oh-My-Zsh framework
 - Installs three essential plugins:
   - **zsh-autosuggestions** - Fish-like autosuggestions
   - **zsh-completions** - Additional completion definitions
   - **zsh-syntax-highlighting** - Fish shell-like syntax highlighting
 
-### 3. Install Powerlevel10k
+### 4. Install Powerlevel10k
 - Clones the Powerlevel10k repository
 - Sets up the theme for both root and main user
 - Provides a beautiful, customizable prompt
 
-### 4. Deploy Configuration Files
+### 5. Deploy Configuration Files
 - Copies `.zshrc` to user home directories
 - Copies `.p10k.zsh` configuration
 - Maintains proper file permissions and ownership
 - Creates backups of existing configurations
 
-### 5. Clean APT Sources
+### 6. Install NVM (Node Version Manager)
+- Downloads and installs NVM v0.40.3
+- Configures NVM for both root and main user
+- Adds NVM configuration to `.zshrc`
+- Enables easy Node.js version management
+
+### 7. Install Node.js
+- Installs latest LTS version of Node.js via NVM
+- Sets LTS as the default Node.js version
+- Configures for both root and main user
+- Required for Claude CLI and modern development
+
+### 8. Install Claude CLI
+- Installs Claude CLI globally via npm
+- Provides command-line access to Claude AI
+- Configures for both root and main user
+- Remember to run `claude login` after installation
+
+### 9. Install htop
+- Installs htop interactive process viewer
+- Provides real-time system monitoring
+- Better alternative to traditional top command
+- Color-coded resource usage display
+
+### 10. Configure UFW Firewall
+- Installs and configures UFW (Uncomplicated Firewall)
+- Sets default policies: deny incoming, allow outgoing
+- **Only allows SSH (port 22) by default**
+- Automatically enables firewall protection
+- Additional ports opened for Coolify if installed
+
+### 11. Configure SSH for Coolify
+- Configures OpenSSH for Coolify compatibility
+- Sets `PermitRootLogin prohibit-password` for security
+- Enables `PubkeyAuthentication`
+- Generates ED25519 SSH keys if needed
+- Adds keys to authorized_keys automatically
+- **Warning**: Ensure you have SSH key access before running
+
+### 12. Install Coolify
+- Installs Coolify self-hosting platform
+- Includes Docker and Docker Compose installation
+- Configures SSH keys for Coolify operations
+- Opens required firewall ports (80, 443, 8000)
+- Provides:
+  - Application deployment from Git
+  - Database management
+  - One-click service deployments
+  - SSL certificate management
+  - Multi-server support
+- Access dashboard at `http://your-server-ip:8000`
+
+### 13. Clean APT Sources
 - Installs `python3-apt` dependency
 - Downloads `aptsources-cleanup.pyz` if not present
 - Removes duplicate and obsolete APT sources
 - Helps maintain a clean package management system
 
-### 6. Run All Steps
+### 14. Run All Steps
 - Executes all installation steps in sequence
 - Recommended for fresh server setups
 
@@ -102,15 +171,23 @@ Then select options from the menu:
 
 Please select an option:
 
-  1) Install Zsh (set as default shell)
-  2) Install Oh-My-Zsh
-  3) Install Powerlevel10k theme
-  4) Deploy configuration files (.zshrc & .p10k.zsh)
-  5) Clean APT sources
-  6) Run all steps
-  7) Exit
+  1) System Update (apt update & upgrade)
+  2) Install Zsh (set as default shell)
+  3) Install Oh-My-Zsh
+  4) Install Powerlevel10k theme
+  5) Deploy configuration files (.zshrc & .p10k.zsh)
+  6) Install NVM (Node Version Manager)
+  7) Install Node.js (via NVM)
+  8) Install Claude CLI
+  9) Install htop
+  10) Configure UFW Firewall (SSH only)
+  11) Configure SSH for Coolify
+  12) Install Coolify
+  13) Clean APT sources
+  14) Run all steps
+  15) Exit
 
-Enter your choice [1-7]: 
+Enter your choice [1-15]: 
 ```
 
 ### Run All Steps at Once
@@ -151,6 +228,30 @@ To restore a backup:
 cp ~/.config-backup-*/.zshrc ~/.zshrc
 cp ~/.config-backup-*/.p10k.zsh ~/.p10k.zsh
 ```
+
+## Security Considerations
+
+### Firewall Configuration
+The UFW firewall is configured with strict defaults:
+- **Incoming**: Denied (except SSH)
+- **Outgoing**: Allowed
+- **SSH**: Port 22 (always allowed)
+- **Coolify Ports** (if installed):
+  - Port 80: HTTP
+  - Port 443: HTTPS
+  - Port 8000: Coolify Dashboard
+
+### SSH Security
+- Password authentication for root is disabled
+- Only SSH key authentication is allowed for root
+- ED25519 keys are generated for maximum security
+- **Important**: Ensure you have SSH key access before enabling these settings
+
+### Coolify Access
+After Coolify installation:
+- Dashboard: `http://your-server-ip:8000`
+- Default credentials will be shown during installation
+- Change default password immediately after first login
 
 ## Post-Installation
 
@@ -193,9 +294,14 @@ For the best experience with Powerlevel10k, install a Nerd Font:
 ## System Requirements
 
 - **OS**: Ubuntu 20.04 LTS or newer
-- **Memory**: Minimum 512MB RAM
-- **Disk**: ~100MB free space
+- **Memory**: 
+  - Minimum 1GB RAM (without Coolify)
+  - Minimum 2GB RAM (with Coolify)
+- **Disk**: 
+  - ~500MB for base installation
+  - ~2GB+ for Coolify and Docker
 - **Network**: Internet connection for package downloads
+- **Ports**: SSH (22) must be accessible
 
 ## Security Notes
 
