@@ -1278,15 +1278,15 @@ install_tailscale() {
         return 0
     fi
     
-    # Try configuration with specified parameters
-    run_tailscale_up "$auth_key" "$tag_params" false
+    # Try configuration with specified parameters (use reset if needed)
+    run_tailscale_up "$auth_key" "$tag_params" "$needs_reset"
     local result=$?
     
     if [ $result -eq 0 ]; then
         success=true
-    elif [ $result -eq 2 ] && [ "$needs_reset" = true ]; then
-        # Retry with reset flag
-        print_warning "Existing configuration detected, retrying with --reset..."
+    elif [ $result -eq 2 ]; then
+        # Still needs reset (shouldn't happen, but handle it)
+        print_warning "Configuration conflict detected, retrying with --reset..."
         run_tailscale_up "$auth_key" "$tag_params" true
         result=$?
         if [ $result -eq 0 ]; then
@@ -1301,7 +1301,7 @@ install_tailscale() {
             fi
         fi
     elif [ $result -eq 3 ] && [ "$use_tags" = true ]; then
-        # Tag error, try without tags
+        # Tag error, try without tags (keep reset flag if it was needed)
         print_warning "Tag authentication failed, retrying without tags..."
         run_tailscale_up "$auth_key" "" "$needs_reset"
         if [ $? -eq 0 ]; then
