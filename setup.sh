@@ -147,6 +147,17 @@ get_ssh_service_name() {
     fi
 }
 
+# Helper function to get the correct docker compose command
+get_docker_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif docker compose version &> /dev/null 2>&1; then
+        echo "docker compose"
+    else
+        echo ""
+    fi
+}
+
 # Function to validate Ubuntu version
 validate_ubuntu_version() {
     print_status "Validating Ubuntu version..."
@@ -1491,14 +1502,41 @@ setup_cloudflare_tunnel() {
             rm cloudflared.deb
         fi
         
-        # Interactive tunnel creation
-        print_status "Please login to Cloudflare..."
-        if ! cloudflared tunnel login; then
-            print_error "Failed to login to Cloudflare"
-            return 1
-        fi
+        # Ask for authentication method
+        echo -e "${YELLOW}Cloudflare Tunnel Setup Options:${NC}"
+        echo "1) Provide existing tunnel token"
+        echo "2) Login to Cloudflare and create/use tunnel"
+        echo "3) Skip Cloudflare setup"
+        read -p "Select option [1-3]: " auth_option
         
-        read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
+        case $auth_option in
+            1)
+                read -p "Enter your Cloudflare tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
+                if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+                    print_error "No token provided"
+                    return 1
+                fi
+                ;;
+            2)
+                # Check for existing certificate
+                if [ -f /root/.cloudflared/cert.pem ] || [ -f ~/.cloudflared/cert.pem ]; then
+                    print_warning "Existing Cloudflare certificate found"
+                    read -p "Overwrite existing certificate? [y/N]: " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        sudo rm -f /root/.cloudflared/cert.pem ~/.cloudflared/cert.pem
+                        print_status "Removed existing certificate"
+                    fi
+                fi
+                
+                # Interactive tunnel creation
+                print_status "Please login to Cloudflare..."
+                if ! cloudflared tunnel login; then
+                    print_error "Failed to login to Cloudflare"
+                    return 1
+                fi
+                
+                read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
         
         # Check if tunnel already exists
         if cloudflared tunnel list | grep -q "$CLOUDFLARE_TUNNEL_NAME"; then
@@ -1514,14 +1552,29 @@ setup_cloudflare_tunnel() {
         fi
         
         # Get tunnel token
-        CLOUDFLARE_TUNNEL_TOKEN=$(cloudflared tunnel token "$CLOUDFLARE_TUNNEL_NAME")
+        print_status "Retrieving token for tunnel: $CLOUDFLARE_TUNNEL_NAME"
+        CLOUDFLARE_TUNNEL_TOKEN=$(cloudflared tunnel token "$CLOUDFLARE_TUNNEL_NAME" 2>/dev/null)
         
         if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
-            print_error "Failed to get tunnel token"
-            return 1
+            print_warning "Failed to retrieve token automatically"
+            read -p "Enter tunnel token manually (or press Enter to skip): " CLOUDFLARE_TUNNEL_TOKEN
+            if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+                print_error "No tunnel token available"
+                return 1
+            fi
         fi
         
-        print_success "Tunnel created successfully"
+        print_success "Tunnel configured successfully"
+                ;;
+            3)
+                print_status "Skipping Cloudflare setup"
+                return 0
+                ;;
+            *)
+                print_error "Invalid option"
+                return 1
+                ;;
+        esac
     else
         print_error "No Cloudflare tunnel token available"
         print_error "Please provide a token or run in interactive mode"
@@ -1582,9 +1635,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=$ZERO_TRUST_DIR/configs/cloudflare
-ExecStartPre=/usr/bin/docker-compose pull
-ExecStart=/usr/bin/docker-compose up
-ExecStop=/usr/bin/docker-compose down
+ExecStartPre=/usr/bin/docker compose pull
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
 Restart=always
 RestartSec=10
 
@@ -1597,12 +1650,24 @@ EOF
     cd "$ZERO_TRUST_DIR/configs/cloudflare"
     
     # Pull latest image
-    if ! sudo docker-compose pull; then
+    local docker_compose_cmd=$(get_docker_compose_cmd)
+    if [ -z "$docker_compose_cmd" ]; then
+        print_error "Docker Compose is not installed"
+        return 1
+    fi
+    
+    if ! sudo $docker_compose_cmd pull; then
         print_warning "Failed to pull latest cloudflared image"
     fi
     
     # Start the tunnel
-    if sudo docker-compose up -d; then
+    local docker_compose_cmd=$(get_docker_compose_cmd)
+    if [ -z "$docker_compose_cmd" ]; then
+        print_error "Docker Compose is not installed"
+        return 1
+    fi
+    
+    if sudo $docker_compose_cmd up -d; then
         print_success "Cloudflare Tunnel started"
     else
         print_error "Failed to start Cloudflare Tunnel"
@@ -1702,7 +1767,12 @@ EOF
     # Start CrowdSec
     print_status "Starting CrowdSec..."
     cd "$ZERO_TRUST_DIR/configs/crowdsec"
-    sudo docker-compose up -d
+    local docker_compose_cmd=$(get_docker_compose_cmd)
+    if [ -z "$docker_compose_cmd" ]; then
+        print_error "Docker Compose is not installed"
+        return 1
+    fi
+    sudo $docker_compose_cmd up -d
     
     # Wait for CrowdSec to start
     sleep 10
@@ -2060,7 +2130,7 @@ EOF
 ## Service Recovery
 - Restart Tailscale: `sudo systemctl restart tailscaled`
 - Restart Docker: `sudo systemctl restart docker`
-- Restart CrowdSec: `cd /etc/zero-trust/configs/crowdsec && docker-compose restart`
+- Restart CrowdSec: `cd /etc/zero-trust/configs/crowdsec && docker compose restart`
 
 ## Rollback Procedure
 Backups are stored with timestamps. To rollback:
