@@ -1,377 +1,126 @@
 # Ubuntu Server Setup Script
 
-A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, Powerlevel10k theme, and essential plugins.
+Automated setup script for Ubuntu servers with Zsh, development tools, and security configurations.
 
-## Features
+## Quick Start
 
-The script is organized into two main categories with an interactive menu system:
-
-### Base Configuration
-- 🚀 **Interactive Menu System** - Choose which components to install
-- 🎨 **Powerlevel10k Theme** - Beautiful and fast Zsh theme
-- 🔌 **Essential Plugins** - Auto-suggestions, syntax highlighting, and completions
-- 👥 **Multi-User Support** - Configures both root and main user
-- 💾 **Automatic Backups** - Backs up existing configurations before changes
-- 🔄 **System Updates** - Complete apt update, upgrade, and cleanup
-- 📦 **NVM & Node.js** - Node Version Manager with latest LTS Node.js
-- 🤖 **Claude Code** - Anthropic's official Claude Code CLI for AI-powered development
-- 📊 **System Monitoring** - htop for interactive process viewing
-- 🚀 **Coolify Platform** - Self-hosted Heroku/Netlify/Vercel alternative
-- 🧹 **APT Sources Cleanup** - Removes duplicate and obsolete APT sources
-
-### Security Configuration
-- 🔥 **UFW Firewall** - Automated firewall configuration for security
-- 🔐 **SSH Hardening** - Secure SSH configuration for Coolify compatibility
-
-## Quick Start (One-liner)
-
-### Full Installation (All Features)
 ```bash
 rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
 ```
 
-### Security-First Installation (Firewall + SSH)
-```bash
-rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "2\n3"'
+## Features
+
+### Base Configuration
+- System updates and package management
+- Zsh shell with Oh-My-Zsh framework
+- Powerlevel10k theme with plugins (autosuggestions, syntax highlighting, completions)
+- NVM, Node.js LTS, and Claude Code CLI
+- htop system monitor
+- Coolify self-hosting platform
+- APT sources cleanup
+
+### Security Configuration  
+- UFW firewall (SSH-only by default)
+- SSH hardening for Coolify compatibility
+
+## Menu Structure
+
 ```
-
-Or download all files with wget:
-
-```bash
-rm -rf server-config && mkdir -p server-config && cd server-config && \
-wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh && \
-wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/zshrc && \
-wget https://raw.githubusercontent.com/abd3lraouf/server-config/main/p10k.zsh && \
-chmod +x setup.sh && sudo ./setup.sh
-```
-
-Or if you have the files locally:
-
-```bash
-chmod +x setup.sh && sudo ./setup.sh
+Main Menu
+├── 1) Base Configuration
+│   ├── System Update
+│   ├── Zsh & Oh-My-Zsh
+│   ├── Powerlevel10k
+│   ├── Configuration Files
+│   ├── NVM & Node.js
+│   ├── Claude Code CLI
+│   ├── htop
+│   ├── Coolify
+│   └── APT Cleanup
+├── 2) Security Configuration
+│   ├── UFW Firewall
+│   └── SSH Hardening
+└── 3) Run All Steps
 ```
 
 ## Prerequisites
 
-- Ubuntu Server (20.04 LTS or newer recommended)
-- Root or sudo access
-- Internet connection (for downloading packages)
+- Ubuntu Server 20.04+ 
+- Root/sudo access
+- Internet connection
 
 ## Required Files
 
-Place these files in the same directory as `setup.sh`:
-
-1. **setup.sh** - Main installation script
-2. **zshrc** or **.zshrc** - Zsh configuration file
-3. **p10k.zsh** or **.p10k.zsh** - Powerlevel10k configuration
-4. **aptsources-cleanup.pyz** - APT sources cleanup tool (optional, will be downloaded if not present)
-
-## Installation Options
-
-The script provides an organized menu system with two main sections:
-
-### Base Configuration Options
-
-#### 1. System Update
-- Runs `apt update` to refresh package lists
-- Performs `apt upgrade -y` to update all packages
-- Executes `apt autoremove` and `apt autoclean` for cleanup
-- Essential first step for any new server setup
-
-#### 2. Install Zsh
-- Installs Zsh package
-- Sets Zsh as default shell for root and main user
-- Automatically detects the main non-root user
-
-#### 3. Install Oh-My-Zsh
-- Downloads and installs Oh-My-Zsh framework
-- Installs three essential plugins:
-  - **zsh-autosuggestions** - Fish-like autosuggestions
-  - **zsh-completions** - Additional completion definitions
-  - **zsh-syntax-highlighting** - Fish shell-like syntax highlighting
-
-#### 4. Install Powerlevel10k
-- Clones the Powerlevel10k repository
-- Sets up the theme for both root and main user
-- Provides a beautiful, customizable prompt
-
-#### 5. Deploy Configuration Files
-- Copies `.zshrc` to user home directories
-- Copies `.p10k.zsh` configuration
-- Maintains proper file permissions and ownership
-- Creates backups of existing configurations
-
-#### 6. Install NVM (Node Version Manager)
-- Downloads and installs NVM v0.40.3
-- Configures NVM for both root and main user
-- Adds NVM configuration to `.zshrc`
-- Enables easy Node.js version management
-
-#### 7. Install Node.js
-- Installs latest LTS version of Node.js via NVM
-- Sets LTS as the default Node.js version
-- Configures for both root and main user
-- Required for Claude Code CLI and modern development
-
-#### 8. Install Claude Code CLI
-- Installs Claude Code CLI globally via npm (@anthropic-ai/claude-code)
-- Provides command-line access to Claude AI
-- Configures for both root and main user
-- Remember to run `claude login` after installation
-
-#### 9. Install htop
-- Installs htop interactive process viewer
-- Provides real-time system monitoring
-- Better alternative to traditional top command
-- Color-coded resource usage display
-
-#### 10. Install Coolify
-- Installs Coolify self-hosting platform
-- Includes Docker and Docker Compose installation
-- Configures SSH keys for Coolify operations
-- Opens required firewall ports (80, 443, 8000)
-- Provides:
-  - Application deployment from Git
-  - Database management
-  - One-click service deployments
-  - SSL certificate management
-  - Multi-server support
-- Access dashboard at `http://your-server-ip:8000`
-
-#### 11. Clean APT Sources
-- Installs `python3-apt` dependency
-- Downloads `aptsources-cleanup.pyz` if not present
-- Removes duplicate and obsolete APT sources
-- Helps maintain a clean package management system
-
-### Security Configuration Options
-
-#### 1. Configure UFW Firewall
-- Installs and configures UFW (Uncomplicated Firewall)
-- Sets default policies: deny incoming, allow outgoing
-- **Only allows SSH (port 22) by default**
-- Automatically enables firewall protection
-- Additional ports opened for Coolify if installed
-
-#### 2. Configure SSH for Coolify
-- Configures OpenSSH for Coolify compatibility
-- Sets `PermitRootLogin prohibit-password` for security
-- Enables `PubkeyAuthentication`
-- Generates ED25519 SSH keys if needed
-- Adds keys to authorized_keys automatically
-- **Warning**: Ensure you have SSH key access before running
-
-### Run All Steps
-- Executes all installation steps in sequence
-- Recommended for fresh server setups
+The script needs these configuration files (included in repo):
+- `setup.sh` - Main script
+- `zshrc` - Zsh configuration
+- `p10k.zsh` - Powerlevel10k theme
 
 ## Usage
 
 ### Interactive Mode
-
-Run the script with sudo privileges:
-
 ```bash
 sudo ./setup.sh
 ```
 
-Then select options from the menu:
+### One-Liner Examples
 
-```
-╔══════════════════════════════════════════════════╗
-║          Ubuntu Server Setup Script              ║
-╚══════════════════════════════════════════════════╝
-
-Please select an option:
-
-  1) Base Configuration
-  2) Security Configuration
-  3) Run all steps (Base + Security)
-  4) Exit
-
-Enter your choice [1-4]: 
+**Full installation:**
+```bash
+rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
 ```
 
-### Base Configuration Menu
-
-```
-╔══════════════════════════════════════════════════╗
-║              Base Configuration                  ║
-╚══════════════════════════════════════════════════╝
-
-Please select an option:
-
-  1) System Update (apt update & upgrade)
-  2) Install Zsh (set as default shell)
-  3) Install Oh-My-Zsh
-  4) Install Powerlevel10k theme
-  5) Deploy configuration files (.zshrc & .p10k.zsh)
-  6) Install NVM (Node Version Manager)
-  7) Install Node.js (via NVM)
-  8) Install Claude Code CLI
-  9) Install htop
-  10) Install Coolify
-  11) Clean APT sources
-  12) Run all base steps
-  13) Back to main menu
-
-Enter your choice [1-13]: 
+**Security only:**
+```bash
+# After cloning, run security menu
+sudo bash -c './setup.sh <<< "2\n3"'
 ```
 
-### Security Configuration Menu
+## Post-Installation
 
-```
-╔══════════════════════════════════════════════════╗
-║              Security Configuration              ║
-╚══════════════════════════════════════════════════╝
+1. **Log out and back in** for shell changes
+2. **Configure Powerlevel10k** (optional): `p10k configure`
+3. **Login to Claude**: `claude login`
+4. **Access Coolify**: `http://your-server-ip:8000`
 
-Please select an option:
+## Backups
 
-  1) Configure UFW Firewall (SSH only)
-  2) Configure SSH for Coolify
-  3) Run all security steps
-  4) Back to main menu
-
-Enter your choice [1-4]: 
-```
-
-### Run All Steps at Once
-
-From the main menu:
-- Select option 3 to run all steps (Base + Security)
-- Or navigate to each submenu and select "Run all" options
-
-## Configuration Files
-
-### .zshrc Configuration
-
-The provided `.zshrc` includes:
-- Powerlevel10k instant prompt initialization
-- Oh-My-Zsh framework setup
-- Plugin configuration (git, npm, zsh-autosuggestions, zsh-completions, zsh-syntax-highlighting)
-- UTF-8 locale settings
-- Useful aliases (e.g., `ll='ls -larth'`)
-- Auto-update settings
-
-### .p10k.zsh Configuration
-
-The Powerlevel10k configuration includes:
-- Rainbow color scheme with Unicode support
-- Two-line prompt layout
-- Git status integration
-- Command execution time display
-- Various development environment indicators
-- 12-hour time format
-
-## Backup and Recovery
-
-All existing configuration files are automatically backed up to:
+All existing configs are backed up to:
 ```
 ~/.config-backup-YYYYMMDD-HHMMSS/
 ```
 
-To restore a backup:
-```bash
-cp ~/.config-backup-*/.zshrc ~/.zshrc
-cp ~/.config-backup-*/.p10k.zsh ~/.p10k.zsh
-```
+## Security Notes
 
-## Security Considerations
-
-### Firewall Configuration
-The UFW firewall is configured with strict defaults:
-- **Incoming**: Denied (except SSH)
-- **Outgoing**: Allowed
-- **SSH**: Port 22 (always allowed)
-- **Coolify Ports** (if installed):
-  - Port 80: HTTP
-  - Port 443: HTTPS
-  - Port 8000: Coolify Dashboard
-
-### SSH Security
-- Password authentication for root is disabled
-- Only SSH key authentication is allowed for root
-- ED25519 keys are generated for maximum security
-- **Important**: Ensure you have SSH key access before enabling these settings
-
-### Coolify Access
-After Coolify installation:
-- Dashboard: `http://your-server-ip:8000`
-- Default credentials will be shown during installation
-- Change default password immediately after first login
-
-## Post-Installation
-
-After installation:
-
-1. **Log out and log back in** for shell changes to take effect
-2. **Run `p10k configure`** to customize your Powerlevel10k theme (optional)
-3. **Source the configuration** without logging out:
-   ```bash
-   source ~/.zshrc
-   ```
+- UFW blocks all incoming except SSH (port 22)
+- SSH root login requires keys (no passwords)
+- Coolify adds ports 80, 443, 8000 to firewall
+- Review scripts before running with sudo
 
 ## Troubleshooting
 
-### Shell not changed
-If the shell doesn't change after installation:
+**Shell not changed:**
 ```bash
-# Manually change shell
 chsh -s $(which zsh)
-# Log out and back in
+# Then log out and back in
 ```
 
-### Theme not loading
-Ensure the theme path is correct in `.zshrc`:
+**Theme not loading:**
 ```bash
-ZSH_THEME="powerlevel10k/powerlevel10k"
+source ~/.zshrc
 ```
 
-### Plugins not working
-Verify plugins are installed in the correct directory:
-```bash
-ls ~/.oh-my-zsh/custom/plugins/
-```
-
-### Font issues
-For the best experience with Powerlevel10k, install a Nerd Font:
-- [Nerd Fonts Downloads](https://www.nerdfonts.com/font-downloads)
-- Recommended: MesloLGS NF
+**Best fonts:** Install [Nerd Fonts](https://www.nerdfonts.com/) for icons
 
 ## System Requirements
 
-- **OS**: Ubuntu 20.04 LTS or newer
-- **Memory**: 
-  - Minimum 1GB RAM (without Coolify)
-  - Minimum 2GB RAM (with Coolify)
-- **Disk**: 
-  - ~500MB for base installation
-  - ~2GB+ for Coolify and Docker
-- **Network**: Internet connection for package downloads
-- **Ports**: SSH (22) must be accessible
-
-## Security Notes
-
-- The script requires sudo/root access
-- Configuration files are set with secure permissions (644)
-- Existing configurations are backed up before modification
-- APT sources cleanup helps maintain system security
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
-
-## License
-
-This script is provided as-is for personal and commercial use.
+- **RAM**: 1GB minimum (2GB with Coolify)
+- **Disk**: 500MB base, 2GB+ with Coolify
+- **Network**: SSH port 22 accessible
 
 ## Support
 
-For issues or questions:
-1. Check the troubleshooting section
-2. Review the backup directory for original configurations
-3. Reinstall specific components using the menu system
+For issues: https://github.com/abd3lraouf/server-config/issues
 
 ---
-
-**Note**: Always review scripts before running them with sudo privileges. This script modifies system configurations and shell settings.
+**Note**: Always review scripts before running with sudo privileges.
