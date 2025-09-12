@@ -1399,7 +1399,8 @@ if ! tailscale status &>/dev/null; then
 fi
 
 # Get current SSH connection
-CURRENT_SSH_CLIENT="${SSH_CLIENT%% *}"
+CURRENT_SSH_CLIENT="${SSH_CLIENT:-}"
+CURRENT_SSH_CLIENT="${CURRENT_SSH_CLIENT%% *}"
 
 # Check if we're connected via Tailscale
 TAILSCALE_IP=$(tailscale ip -4 2>/dev/null)
@@ -1435,7 +1436,8 @@ validate_and_restrict_ssh() {
     print_status "Validating SSH restriction safety..."
     
     # Get current connection details
-    local current_ssh="${SSH_CLIENT%% *}"
+    local current_ssh="${SSH_CLIENT:-}"
+    current_ssh="${current_ssh%% *}"
     local tailscale_ip=$(tailscale ip -4 2>/dev/null)
     
     if [[ -n "$current_ssh" ]] && [[ "$current_ssh" != "$tailscale_ip"* ]]; then
