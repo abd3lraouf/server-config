@@ -1202,6 +1202,16 @@ install_tailscale() {
         return 1
     fi
     
+    # Check if Tailscale needs reconfiguration
+    local needs_reset=false
+    local backend_state=$(tailscale status --json 2>/dev/null | jq -r '.BackendState' 2>/dev/null || echo "")
+    
+    if [ "$backend_state" = "Running" ] || [ "$backend_state" = "NeedsLogin" ]; then
+        # Tailscale has been configured before, may need reset
+        needs_reset=true
+        print_status "Tailscale has existing configuration, will use --reset if needed"
+    fi
+    
     # Configure Tailscale based on mode
     local use_tags=false
     local tag_params=""
@@ -1222,49 +1232,90 @@ install_tailscale() {
                 # Remove 'tag:' prefix if user included it
                 tag_name=${tag_name#tag:}
                 tag_params="--advertise-tags=tag:${tag_name}"
+            else
+                print_status "No tag name provided, continuing without tags"
             fi
         fi
     fi
     
-    # Configure Tailscale
-    if [ -n "$TAILSCALE_AUTH_KEY" ]; then
-        print_status "Configuring Tailscale with provided auth key..."
-        if ! sudo tailscale up --authkey="$TAILSCALE_AUTH_KEY" --ssh $tag_params; then
-            if [ "$use_tags" = true ]; then
-                print_warning "Failed with tags, retrying without tags..."
-                if ! sudo tailscale up --authkey="$TAILSCALE_AUTH_KEY" --ssh; then
-                    print_error "Failed to authenticate with Tailscale"
-                    return 1
-                fi
-                print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
+    # Helper function to run tailscale up with smart retry
+    run_tailscale_up() {
+        local auth_key="$1"
+        local extra_params="$2"
+        local use_reset="$3"
+        
+        local cmd="sudo tailscale up --ssh"
+        [ -n "$auth_key" ] && cmd="$cmd --authkey=$auth_key"
+        [ -n "$extra_params" ] && cmd="$cmd $extra_params"
+        [ "$use_reset" = true ] && cmd="$cmd --reset"
+        
+        if ! $cmd 2>&1 | tee /tmp/tailscale_output.txt; then
+            # Check for specific error messages
+            if grep -q "requires mentioning all non-default flags" /tmp/tailscale_output.txt; then
+                return 2  # Needs reset
+            elif grep -q "requested tags.*are invalid or not permitted" /tmp/tailscale_output.txt; then
+                return 3  # Tag error
             else
-                print_error "Failed to authenticate with Tailscale"
-                return 1
+                return 1  # Other error
             fi
         fi
+        return 0  # Success
+    }
+    
+    # Configure Tailscale
+    local auth_key=""
+    local success=false
+    
+    if [ -n "$TAILSCALE_AUTH_KEY" ]; then
+        auth_key="$TAILSCALE_AUTH_KEY"
+        print_status "Configuring Tailscale with provided auth key..."
     elif [[ "$INTERACTIVE_MODE" == true ]]; then
         print_status "Starting interactive Tailscale configuration..."
         echo -e "${YELLOW}Please authenticate with Tailscale:${NC}"
-        
-        # Run tailscale up interactively
-        if ! sudo tailscale up --ssh $tag_params; then
-            if [ "$use_tags" = true ]; then
-                print_warning "Failed with tags, retrying without tags..."
-                echo -e "${YELLOW}Please authenticate again:${NC}"
-                if ! sudo tailscale up --ssh; then
-                    print_error "Failed to configure Tailscale"
-                    return 1
-                fi
-                print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
-            else
-                print_error "Failed to configure Tailscale"
-                return 1
-            fi
-        fi
     else
         print_warning "No Tailscale auth key provided in non-interactive mode"
         print_warning "Run manually: sudo tailscale up --ssh"
         return 0
+    fi
+    
+    # Try configuration with specified parameters
+    run_tailscale_up "$auth_key" "$tag_params" false
+    local result=$?
+    
+    if [ $result -eq 0 ]; then
+        success=true
+    elif [ $result -eq 2 ] && [ "$needs_reset" = true ]; then
+        # Retry with reset flag
+        print_warning "Existing configuration detected, retrying with --reset..."
+        run_tailscale_up "$auth_key" "$tag_params" true
+        result=$?
+        if [ $result -eq 0 ]; then
+            success=true
+        elif [ $result -eq 3 ] && [ "$use_tags" = true ]; then
+            # Tag error after reset, try without tags
+            print_warning "Tag authentication failed, retrying without tags..."
+            run_tailscale_up "$auth_key" "" true
+            if [ $? -eq 0 ]; then
+                success=true
+                print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
+            fi
+        fi
+    elif [ $result -eq 3 ] && [ "$use_tags" = true ]; then
+        # Tag error, try without tags
+        print_warning "Tag authentication failed, retrying without tags..."
+        run_tailscale_up "$auth_key" "" "$needs_reset"
+        if [ $? -eq 0 ]; then
+            success=true
+            print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
+        fi
+    fi
+    
+    # Clean up temp file
+    rm -f /tmp/tailscale_output.txt
+    
+    if [ "$success" != true ]; then
+        print_error "Failed to configure Tailscale"
+        return 1
     fi
     
     # Wait for Tailscale to connect with progress indicator
