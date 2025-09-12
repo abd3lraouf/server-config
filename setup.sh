@@ -1249,7 +1249,7 @@ install_tailscale() {
         [ -n "$extra_params" ] && cmd="$cmd $extra_params"
         [ "$use_reset" = true ] && cmd="$cmd --reset"
         
-        if ! $cmd 2>&1 | tee /tmp/tailscale_output.txt; then
+        if ! eval "$cmd" 2>&1 | tee /tmp/tailscale_output.txt; then
             # Check for specific error messages
             if grep -q "requires mentioning all non-default flags" /tmp/tailscale_output.txt; then
                 return 2  # Needs reset
