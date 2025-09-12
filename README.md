@@ -1,53 +1,94 @@
-# Ubuntu Server Setup Script
+# Ubuntu Server Zero Trust Security Setup Script v2.1.0
 
-Automated setup script for Ubuntu servers with Zsh, development tools, and security configurations.
+Enterprise-grade automated security hardening for Ubuntu 24.04 LTS servers with comprehensive Zero Trust architecture, CIS benchmark compliance, and interactive configuration wizard.
 
-## Quick Start
+## 🚀 Quick Start
 
+### Interactive Setup (Recommended)
 ```bash
-rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
+git clone https://github.com/abd3lraouf/server-config.git && cd server-config
+sudo ./setup.sh
 ```
 
-## Features
+### Automated Zero Trust Setup
+```bash
+sudo ./setup.sh --quick-setup --email admin@example.com --domain example.com
+```
+
+## ✨ Features
+
+### 🔒 Zero Trust Security Architecture
+- **Zero exposed ports** - All traffic via secure tunnels
+- **Tailscale VPN** - Secure SSH access with MFA support
+- **Cloudflare Tunnel** - Protected web services without exposed ports
+- **CrowdSec IPS** - Real-time threat detection and blocking
+- **UFW-Docker Integration** - Proper firewall rules for containers
+- **Multi-layer defense** - Defense in depth strategy
+
+### 📋 Compliance & Hardening
+- **CIS Ubuntu 24.04 LTS Benchmarks** - Automated Level 1 & 2 controls
+- **NIST SP 800-207** - Zero Trust Architecture implementation
+- **Kernel hardening** - Ubuntu 24.04 kernel 6.8+ optimizations
+- **AppArmor 4.0** - Mandatory Access Control enforcement
+- **Audit system** - Comprehensive logging with auditd
+- **File integrity** - AIDE monitoring for critical files
+- **Automatic updates** - Unattended security patches
+
+### 🐳 Container Security
+- **Rootless Docker** - Enhanced security without root privileges
+- **Podman support** - Alternative container runtime (rootless by default)
+- **Container scanning** - Security validation for images
+- **Network isolation** - Secure container networking
+
+### 📊 Monitoring & Reporting
+- **Compliance scoring** - HTML/text reports with 85%+ target
+- **Lynis auditing** - Security hardening assessment
+- **Logwatch analysis** - Automated log review
+- **Real-time validation** - Continuous security checks
+- **Emergency rollback** - Safe recovery procedures
 
 ### Base Configuration
 - System updates and package management
 - Zsh shell with Oh-My-Zsh framework
-- Powerlevel10k theme with plugins (autosuggestions, syntax highlighting, completions)
+- Powerlevel10k theme with plugins
 - NVM, Node.js LTS, and Claude Code CLI
 - htop system monitor
 - Coolify self-hosting platform
-- APT sources cleanup
 
-### Security Configuration  
-- UFW firewall (SSH-only by default)
-- SSH hardening for Coolify compatibility
-
-## Menu Structure
+## 📚 Menu Structure
 
 ```
 Main Menu
 ├── 1) Base Configuration
 │   ├── System Update
 │   ├── Zsh & Oh-My-Zsh
-│   ├── Powerlevel10k
-│   ├── Configuration Files
-│   ├── NVM & Node.js
-│   ├── Claude Code CLI
-│   ├── htop
-│   ├── Coolify
-│   └── APT Cleanup
+│   ├── Development Tools
+│   └── Coolify Platform
 ├── 2) Security Configuration
-│   ├── UFW Firewall
-│   └── SSH Hardening
+│   ├── Basic Security
+│   ├── Zero Trust Setup (Complete)
+│   ├── CIS Benchmarks
+│   ├── Compliance Reporting
+│   ├── Container Runtime
+│   ├── Emergency Rollback
+│   └── Individual Components:
+│       ├── System Hardening
+│       ├── UFW-Docker Firewall
+│       ├── Tailscale VPN
+│       ├── Cloudflare Tunnel
+│       ├── CrowdSec IPS
+│       └── Monitoring Tools
 └── 3) Run All Steps
 ```
 
-## Prerequisites
+## 🔧 Prerequisites
 
-- Ubuntu Server 20.04+ 
-- Root/sudo access
-- Internet connection
+- **Ubuntu 24.04 LTS** (Noble Numbat) - Required
+- **Ubuntu 22.04/20.04** - Supported with limitations
+- **Root/sudo access**
+- **4GB RAM minimum** (8GB recommended)
+- **40GB storage minimum**
+- **Internet connection**
 
 ## Required Files
 
