@@ -1203,20 +1203,63 @@ install_tailscale() {
     fi
     
     # Configure Tailscale based on mode
+    local use_tags=false
+    local tag_params=""
+    
+    # In interactive mode, ask about tags
+    if [[ "$INTERACTIVE_MODE" == true ]]; then
+        echo -e "${YELLOW}Tailscale Tag Configuration:${NC}"
+        echo "Tags allow you to group and manage devices with ACL policies."
+        echo "Note: Tags must be configured in your Tailscale admin console first."
+        echo "See: https://tailscale.com/kb/1068/tags"
+        echo
+        read -p "Do you want to use Tailscale tags? [y/N]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            read -p "Enter tag name (e.g., 'server' for tag:server, or press Enter to skip): " tag_name
+            if [ -n "$tag_name" ]; then
+                use_tags=true
+                # Remove 'tag:' prefix if user included it
+                tag_name=${tag_name#tag:}
+                tag_params="--advertise-tags=tag:${tag_name}"
+            fi
+        fi
+    fi
+    
+    # Configure Tailscale
     if [ -n "$TAILSCALE_AUTH_KEY" ]; then
         print_status "Configuring Tailscale with provided auth key..."
-        if ! sudo tailscale up --authkey="$TAILSCALE_AUTH_KEY" --ssh --advertise-tags=tag:server; then
-            print_error "Failed to authenticate with Tailscale"
-            return 1
+        if ! sudo tailscale up --authkey="$TAILSCALE_AUTH_KEY" --ssh $tag_params; then
+            if [ "$use_tags" = true ]; then
+                print_warning "Failed with tags, retrying without tags..."
+                if ! sudo tailscale up --authkey="$TAILSCALE_AUTH_KEY" --ssh; then
+                    print_error "Failed to authenticate with Tailscale"
+                    return 1
+                fi
+                print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
+            else
+                print_error "Failed to authenticate with Tailscale"
+                return 1
+            fi
         fi
     elif [[ "$INTERACTIVE_MODE" == true ]]; then
         print_status "Starting interactive Tailscale configuration..."
         echo -e "${YELLOW}Please authenticate with Tailscale:${NC}"
         
         # Run tailscale up interactively
-        if ! sudo tailscale up --ssh --advertise-tags=tag:server; then
-            print_error "Failed to configure Tailscale"
-            return 1
+        if ! sudo tailscale up --ssh $tag_params; then
+            if [ "$use_tags" = true ]; then
+                print_warning "Failed with tags, retrying without tags..."
+                echo -e "${YELLOW}Please authenticate again:${NC}"
+                if ! sudo tailscale up --ssh; then
+                    print_error "Failed to configure Tailscale"
+                    return 1
+                fi
+                print_warning "Connected without tags. Configure tags in Tailscale admin console if needed."
+            else
+                print_error "Failed to configure Tailscale"
+                return 1
+            fi
         fi
     else
         print_warning "No Tailscale auth key provided in non-interactive mode"
