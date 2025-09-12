@@ -1964,8 +1964,426 @@ EOF
     print_success "Security documentation generated"
 }
 
-# Function 23: Complete Zero Trust setup
-setup_zero_trust_complete() {
+# Function 23: Install rootless Docker
+install_rootless_docker() {
+    print_status "Installing Docker in rootless mode..."
+    log_action "Starting rootless Docker installation" "INFO"
+    
+    # Check if Docker is already installed
+    if command -v docker &> /dev/null; then
+        print_warning "Docker is already installed in standard mode"
+        
+        if [[ "$INTERACTIVE_MODE" == true ]]; then
+            read -p "Convert to rootless mode? [y/N]: " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                return 0
+            fi
+        fi
+    fi
+    
+    # Install dependencies
+    print_status "Installing rootless Docker dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        uidmap \
+        dbus-user-session \
+        fuse-overlayfs \
+        slirp4netns
+    
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+        print_status "Installing Docker CE..."
+        curl -fsSL https://get.docker.com | sh
+    fi
+    
+    # Install rootless extras
+    sudo apt-get install -y docker-ce-rootless-extras
+    
+    # Setup rootless Docker for main user
+    print_status "Setting up rootless Docker for user: $MAIN_USER"
+    
+    # Run as the main user
+    sudo -u "$MAIN_USER" bash << 'EOF'
+# Install rootless Docker
+dockerd-rootless-setuptool.sh install
+
+# Enable and start Docker service
+systemctl --user enable docker
+systemctl --user start docker
+
+# Set DOCKER_HOST
+echo 'export DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock' >> ~/.bashrc
+echo 'export PATH=/usr/bin:$PATH' >> ~/.bashrc
+EOF
+    
+    print_success "Rootless Docker installed for user: $MAIN_USER"
+    print_status "User must log out and back in for changes to take effect"
+    
+    log_action "Rootless Docker installation completed" "SUCCESS"
+    return 0
+}
+
+# Function 24: Install Podman
+install_podman() {
+    print_status "Installing Podman (rootless by default)..."
+    log_action "Starting Podman installation" "INFO"
+    
+    # Check if Podman is already installed
+    if command -v podman &> /dev/null; then
+        print_warning "Podman is already installed"
+        podman --version
+        return 0
+    fi
+    
+    # Add Podman repository for Ubuntu 24.04
+    print_status "Adding Podman repository..."
+    
+    # For Ubuntu 24.04, Podman is in the default repos
+    sudo apt-get update
+    sudo apt-get install -y podman podman-compose
+    
+    # Configure registries
+    print_status "Configuring container registries..."
+    sudo mkdir -p /etc/containers
+    cat << 'EOF' | sudo tee /etc/containers/registries.conf > /dev/null
+[registries.search]
+registries = ['docker.io', 'quay.io', 'gcr.io']
+
+[registries.insecure]
+registries = []
+
+[registries.block]
+registries = []
+EOF
+    
+    # Setup for main user
+    print_status "Configuring Podman for user: $MAIN_USER"
+    
+    # Configure subuid and subgid
+    sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$MAIN_USER"
+    
+    # Enable lingering for user services
+    sudo loginctl enable-linger "$MAIN_USER"
+    
+    print_success "Podman installed successfully"
+    podman --version
+    
+    log_action "Podman installation completed" "SUCCESS"
+    return 0
+}
+
+# Function 25: CIS Benchmark Hardening
+apply_cis_benchmarks() {
+    print_status "Applying CIS Ubuntu 24.04 LTS Benchmark controls..."
+    log_action "Starting CIS benchmark implementation" "INFO"
+    
+    # CIS 1.1.1 - Disable unused filesystems
+    print_status "Disabling unused filesystems (CIS 1.1.1)..."
+    local unused_fs=(
+        "cramfs" "freevxfs" "jffs2" "hfs" "hfsplus" 
+        "squashfs" "udf" "vfat" "usb-storage"
+    )
+    
+    for fs in "${unused_fs[@]}"; do
+        echo "install $fs /bin/true" | sudo tee -a /etc/modprobe.d/cis-hardening.conf > /dev/null
+    done
+    
+    # CIS 1.3.1 - AIDE configuration
+    print_status "Configuring AIDE for file integrity (CIS 1.3.1)..."
+    if ! command -v aide &> /dev/null; then
+        sudo apt-get install -y aide aide-common
+    fi
+    
+    # CIS 1.4.1 - Bootloader configuration
+    print_status "Securing bootloader (CIS 1.4.1)..."
+    if [ -f /boot/grub/grub.cfg ]; then
+        sudo chmod 400 /boot/grub/grub.cfg
+        sudo chown root:root /boot/grub/grub.cfg
+    fi
+    
+    # CIS 1.5.1 - Core dumps
+    print_status "Restricting core dumps (CIS 1.5.1)..."
+    echo "* hard core 0" | sudo tee -a /etc/security/limits.conf > /dev/null
+    echo "fs.suid_dumpable = 0" | sudo tee -a /etc/sysctl.d/99-cis.conf > /dev/null
+    
+    # CIS 3.3.1 - Network parameters
+    print_status "Configuring network parameters (CIS 3.3)..."
+    cat << 'EOF' | sudo tee -a /etc/sysctl.d/99-cis-network.conf > /dev/null
+# CIS 3.3 Network Parameters
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+EOF
+    
+    sudo sysctl -p /etc/sysctl.d/99-cis-network.conf
+    
+    # CIS 4.1.1 - Audit system
+    print_status "Configuring audit system (CIS 4.1)..."
+    if ! dpkg -l | grep -q auditd; then
+        sudo apt-get install -y auditd audispd-plugins
+    fi
+    
+    # Add audit rules
+    cat << 'EOF' | sudo tee /etc/audit/rules.d/cis.rules > /dev/null
+# CIS Audit Rules
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope
+-w /var/log/sudo.log -p wa -k actions
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+-w /sbin/modprobe -p x -k modules
+-a always,exit -F arch=b64 -S init_module -S delete_module -k modules
+EOF
+    
+    sudo systemctl restart auditd
+    
+    # CIS 5.2.1 - SSH configuration
+    print_status "Hardening SSH configuration (CIS 5.2)..."
+    local ssh_config="/etc/ssh/sshd_config.d/99-cis-hardening.conf"
+    cat << 'EOF' | sudo tee "$ssh_config" > /dev/null
+# CIS SSH Hardening
+Protocol 2
+LogLevel VERBOSE
+X11Forwarding no
+MaxAuthTries 4
+IgnoreRhosts yes
+HostbasedAuthentication no
+PermitRootLogin no
+PermitEmptyPasswords no
+PermitUserEnvironment no
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+ClientAliveInterval 300
+ClientAliveCountMax 0
+LoginGraceTime 60
+MaxStartups 10:30:60
+MaxSessions 4
+AllowUsers ${MAIN_USER}
+EOF
+    
+    sudo systemctl reload sshd
+    
+    print_success "CIS benchmarks applied successfully"
+    log_action "CIS benchmark implementation completed" "SUCCESS"
+    return 0
+}
+
+# Function 26: Generate Compliance Report
+generate_compliance_report() {
+    print_status "Generating compliance report..."
+    log_action "Starting compliance report generation" "INFO"
+    
+    local report_file="$ZERO_TRUST_DIR/docs/compliance-report-$(date +%Y%m%d-%H%M%S).html"
+    local score=0
+    local total=0
+    
+    # Start HTML report
+    cat << 'HTML_START' | sudo tee "$report_file" > /dev/null
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zero Trust Security Compliance Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        h2 { color: #555; margin-top: 30px; }
+        .pass { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .summary { background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Zero Trust Security Compliance Report</h1>
+    <div class="summary">
+        <p><strong>Generated:</strong> $(date)</p>
+        <p><strong>Hostname:</strong> $(hostname)</p>
+        <p><strong>OS:</strong> $(lsb_release -ds)</p>
+        <p><strong>Kernel:</strong> $(uname -r)</p>
+    </div>
+HTML_START
+    
+    echo "<h2>Security Controls Assessment</h2>" | sudo tee -a "$report_file" > /dev/null
+    echo "<table>" | sudo tee -a "$report_file" > /dev/null
+    echo "<tr><th>Control</th><th>Description</th><th>Status</th><th>Details</th></tr>" | sudo tee -a "$report_file" > /dev/null
+    
+    # Check various security controls
+    local controls=(
+        "SSH:SSH Hardening:$(grep -q 'PermitRootLogin no' /etc/ssh/sshd_config* 2>/dev/null && echo 'PASS' || echo 'FAIL'):Root login disabled"
+        "Firewall:UFW Status:$(sudo ufw status | grep -q 'Status: active' && echo 'PASS' || echo 'FAIL'):Firewall active"
+        "Updates:Automatic Updates:$(systemctl is-enabled unattended-upgrades &>/dev/null && echo 'PASS' || echo 'FAIL'):Security updates enabled"
+        "AppArmor:MAC Enforcement:$(aa-status --enabled &>/dev/null && echo 'PASS' || echo 'FAIL'):AppArmor enabled"
+        "Audit:Audit System:$(systemctl is-active auditd &>/dev/null && echo 'PASS' || echo 'FAIL'):Auditd running"
+        "Tailscale:Zero Trust Network:$(tailscale status &>/dev/null && echo 'PASS' || echo 'FAIL'):Tailscale connected"
+        "Docker:Container Security:$(docker info &>/dev/null && echo 'PASS' || echo 'WARNING'):Docker available"
+        "CrowdSec:IPS Protection:$(docker ps | grep -q crowdsec && echo 'PASS' || echo 'WARNING'):CrowdSec running"
+    )
+    
+    for control in "${controls[@]}"; do
+        IFS=':' read -r name description status details <<< "$control"
+        ((total++))
+        [[ "$status" == "PASS" ]] && ((score++))
+        
+        local status_class="fail"
+        [[ "$status" == "PASS" ]] && status_class="pass"
+        [[ "$status" == "WARNING" ]] && status_class="warning"
+        
+        echo "<tr><td>$name</td><td>$description</td><td class='$status_class'>$status</td><td>$details</td></tr>" | sudo tee -a "$report_file" > /dev/null
+    done
+    
+    echo "</table>" | sudo tee -a "$report_file" > /dev/null
+    
+    # Compliance Score
+    local percentage=$((score * 100 / total))
+    cat << HTML_END | sudo tee -a "$report_file" > /dev/null
+    <h2>Compliance Score</h2>
+    <div class="summary">
+        <h3>Overall Score: ${percentage}% (${score}/${total} controls passing)</h3>
+        <p><strong>CIS Benchmark:</strong> $([ $percentage -ge 85 ] && echo "<span class='pass'>COMPLIANT</span>" || echo "<span class='fail'>NON-COMPLIANT</span>")</p>
+        <p><strong>Security Posture:</strong> $([ $percentage -ge 90 ] && echo "Excellent" || ([ $percentage -ge 75 ] && echo "Good" || echo "Needs Improvement"))</p>
+    </div>
+    
+    <h2>Recommendations</h2>
+    <ul>
+        <li>Review and remediate any failed controls</li>
+        <li>Schedule regular compliance assessments</li>
+        <li>Keep all security tools and signatures updated</li>
+        <li>Monitor logs and alerts continuously</li>
+        <li>Test incident response procedures quarterly</li>
+    </ul>
+    
+    <p><small>Report generated by Zero Trust Security Setup v${SCRIPT_VERSION}</small></p>
+</body>
+</html>
+HTML_END
+    
+    print_success "Compliance report generated: $report_file"
+    
+    # Also generate a text summary
+    local summary_file="$ZERO_TRUST_DIR/docs/compliance-summary.txt"
+    cat << EOF | sudo tee "$summary_file" > /dev/null
+COMPLIANCE SUMMARY
+==================
+Date: $(date)
+Score: ${percentage}% (${score}/${total})
+Status: $([ $percentage -ge 85 ] && echo "COMPLIANT" || echo "NON-COMPLIANT")
+
+Next Steps:
+- Review detailed report: $report_file
+- Address any failed controls
+- Schedule next assessment
+EOF
+    
+    log_action "Compliance report generated successfully" "SUCCESS"
+    return 0
+}
+
+# Function 27: Emergency Rollback
+emergency_rollback() {
+    print_warning "EMERGENCY ROLLBACK INITIATED"
+    log_action "Starting emergency rollback" "WARNING"
+    
+    echo -e "${RED}This will revert security changes and may leave your system exposed!${NC}"
+    
+    if [[ "$INTERACTIVE_MODE" == true ]]; then
+        read -p "Are you sure you want to proceed? Type 'ROLLBACK' to confirm: " confirm
+        if [[ "$confirm" != "ROLLBACK" ]]; then
+            print_status "Rollback cancelled"
+            return 1
+        fi
+    fi
+    
+    print_status "Performing emergency rollback..."
+    
+    # Re-enable SSH access
+    print_status "Re-enabling public SSH access..."
+    sudo ufw allow 22/tcp
+    sudo ufw reload
+    
+    # Restore SSH configuration
+    if [ -f "$BACKUP_DIR/sshd_config.backup" ]; then
+        sudo cp "$BACKUP_DIR/sshd_config.backup" /etc/ssh/sshd_config
+        sudo systemctl restart sshd
+    fi
+    
+    # Disable restrictive firewall rules
+    print_status "Resetting firewall to permissive state..."
+    sudo ufw --force reset
+    sudo ufw default allow incoming
+    sudo ufw default allow outgoing
+    sudo ufw --force enable
+    
+    # Stop security services
+    print_status "Stopping security services..."
+    sudo systemctl stop crowdsec &>/dev/null || true
+    sudo systemctl stop cloudflared &>/dev/null || true
+    
+    # Create recovery script
+    local recovery_script="$ZERO_TRUST_DIR/scripts/recovery-$(date +%Y%m%d-%H%M%S).sh"
+    cat << 'EOF' | sudo tee "$recovery_script" > /dev/null
+#!/bin/bash
+# Recovery script to re-apply security after fixing issues
+
+echo "This script will help you re-apply security settings after recovery"
+echo "Run this only after fixing the issues that caused the rollback"
+echo
+
+read -p "Re-apply firewall rules? [y/N]: " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    ufw --force reset
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw --force enable
+fi
+
+read -p "Restart security services? [y/N]: " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    systemctl start cloudflared 2>/dev/null || echo "Cloudflare not configured"
+    systemctl start crowdsec 2>/dev/null || echo "CrowdSec not configured"
+fi
+
+echo "Recovery steps completed. Review security posture before proceeding."
+EOF
+    sudo chmod +x "$recovery_script"
+    
+    print_warning "ROLLBACK COMPLETED"
+    print_warning "Your system is now in a LESS SECURE state!"
+    print_status "Recovery script created: $recovery_script"
+    print_status "Run the recovery script after fixing issues to re-apply security"
+    
+    log_action "Emergency rollback completed" "WARNING"
+    return 0
+}
+
+# Function 28: Complete Zero Trust setup
     print_status "Starting complete Zero Trust security setup..."
     
     echo -e "\n${CYAN}═══════════════════════════════════════════════════════════${NC}"
@@ -1983,32 +2401,45 @@ setup_zero_trust_complete() {
     echo -e "\n${YELLOW}▶ PHASE 1: System Hardening${NC}"
     harden_system
     
-    echo -e "\n${YELLOW}▶ PHASE 2: Firewall Configuration${NC}"
-    configure_ufw_docker
+    echo -e "\n${YELLOW}▶ PHASE 2: CIS Benchmarks${NC}"
+    apply_cis_benchmarks
     
-    echo -e "\n${YELLOW}▶ PHASE 3: Tailscale Setup${NC}"
-    install_tailscale
-    
-    if [ -n "$CLOUDFLARE_TOKEN" ] && [ -n "$DOMAIN" ]; then
-        echo -e "\n${YELLOW}▶ PHASE 4: Cloudflare Tunnel${NC}"
-        setup_cloudflare_tunnel
-    else
-        print_warning "Skipping Cloudflare Tunnel (no token/domain provided)"
+    echo -e "\n${YELLOW}▶ PHASE 3: Container Runtime${NC}"
+    if [[ "$ENABLE_ROOTLESS_DOCKER" == true ]]; then
+        install_rootless_docker
+    elif [[ "$ENABLE_PODMAN" == true ]]; then
+        install_podman
     fi
     
-    echo -e "\n${YELLOW}▶ PHASE 5: CrowdSec Protection${NC}"
+    echo -e "\n${YELLOW}▶ PHASE 4: Firewall Configuration${NC}"
+    configure_ufw_docker
+    
+    echo -e "\n${YELLOW}▶ PHASE 5: Tailscale Setup${NC}"
+    install_tailscale
+    
+    if [ -n "$CLOUDFLARE_TUNNEL_TOKEN" ] || [ -n "$CLOUDFLARE_TOKEN" ] || [[ "$INTERACTIVE_MODE" == true ]]; then
+        echo -e "\n${YELLOW}▶ PHASE 6: Cloudflare Tunnel${NC}"
+        setup_cloudflare_tunnel
+    else
+        print_warning "Skipping Cloudflare Tunnel (no configuration provided)"
+    fi
+    
+    echo -e "\n${YELLOW}▶ PHASE 7: CrowdSec Protection${NC}"
     install_crowdsec
     
-    echo -e "\n${YELLOW}▶ PHASE 6: Traefik Security${NC}"
+    echo -e "\n${YELLOW}▶ PHASE 8: Traefik Security${NC}"
     configure_traefik_security
     
-    echo -e "\n${YELLOW}▶ PHASE 7: Monitoring Tools${NC}"
+    echo -e "\n${YELLOW}▶ PHASE 9: Monitoring Tools${NC}"
     install_monitoring_tools
     
-    echo -e "\n${YELLOW}▶ PHASE 8: Validation${NC}"
+    echo -e "\n${YELLOW}▶ PHASE 10: Validation${NC}"
     validate_zero_trust_security
     
-    echo -e "\n${YELLOW}▶ PHASE 9: Documentation${NC}"
+    echo -e "\n${YELLOW}▶ PHASE 11: Compliance Report${NC}"
+    generate_compliance_report
+    
+    echo -e "\n${YELLOW}▶ PHASE 12: Documentation${NC}"
     generate_security_docs
     
     # Final report
@@ -2127,7 +2558,11 @@ show_security_menu() {
     echo -e "  ${GREEN}10)${NC} Install Monitoring Tools"
     echo -e "  ${GREEN}11)${NC} Run COMPLETE Zero Trust Setup"
     echo -e "  ${GREEN}12)${NC} Validate Security Configuration"
-    echo -e "  ${GREEN}13)${NC} Back to main menu"
+    echo -e "  ${GREEN}13)${NC} Apply CIS Benchmarks"
+    echo -e "  ${GREEN}14)${NC} Generate Compliance Report"
+    echo -e "  ${GREEN}15)${NC} Emergency Rollback"
+    echo -e "  ${GREEN}16)${NC} Container Runtime Setup (Docker/Podman)"
+    echo -e "  ${GREEN}17)${NC} Back to main menu"
     echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
 }
 
@@ -2191,7 +2626,7 @@ handle_base_menu() {
                 return
                 ;;
             *)
-                print_error "Invalid option. Please select 1-13"
+                print_error "Invalid option. Please select 1-17"
                 ;;
         esac
         
@@ -2206,7 +2641,7 @@ handle_base_menu() {
 handle_security_menu() {
     while true; do
         show_security_menu
-        read -p "Enter your choice [1-13]: " choice
+        read -p "Enter your choice [1-17]: " choice
         
         case $choice in
             1)
@@ -2248,24 +2683,48 @@ handle_security_menu() {
                 ;;
             11)
                 # Get parameters for complete setup
-                read -p "Enter your email (optional, for notifications): " EMAIL
-                read -p "Enter Cloudflare Tunnel token (optional): " CLOUDFLARE_TOKEN
-                read -p "Enter your domain (required if using Cloudflare): " DOMAIN
-                read -p "Enter Tailscale auth key (optional): " TAILSCALE_KEY
+                if [[ "$INTERACTIVE_MODE" == true ]]; then
+                    configure_interactively
+                fi
                 setup_zero_trust_complete
                 ;;
             12)
                 validate_zero_trust_security
                 ;;
             13)
+                apply_cis_benchmarks
+                ;;
+            14)
+                generate_compliance_report
+                ;;
+            15)
+                emergency_rollback
+                ;;
+            16)
+                if [[ "$ENABLE_ROOTLESS_DOCKER" == true ]] || [[ "$INTERACTIVE_MODE" == true ]]; then
+                    read -p "Install rootless Docker? [y/N]: " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        install_rootless_docker
+                    fi
+                fi
+                if [[ "$ENABLE_PODMAN" == true ]] || [[ "$INTERACTIVE_MODE" == true ]]; then
+                    read -p "Install Podman? [y/N]: " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        install_podman
+                    fi
+                fi
+                ;;
+            17)
                 return
                 ;;
             *)
-                print_error "Invalid option. Please select 1-13"
+                print_error "Invalid option. Please select 1-17"
                 ;;
         esac
         
-        if [ "$choice" != "13" ]; then
+        if [ "$choice" != "17" ]; then
             echo -e "\n${YELLOW}Press Enter to continue...${NC}"
             read
         fi
