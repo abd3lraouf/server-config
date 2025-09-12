@@ -4,6 +4,9 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 
 ## Features
 
+The script is organized into two main categories with an interactive menu system:
+
+### Base Configuration
 - 🚀 **Interactive Menu System** - Choose which components to install
 - 🎨 **Powerlevel10k Theme** - Beautiful and fast Zsh theme
 - 🔌 **Essential Plugins** - Auto-suggestions, syntax highlighting, and completions
@@ -13,10 +16,12 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 - 📦 **NVM & Node.js** - Node Version Manager with latest LTS Node.js
 - 🤖 **Claude Code** - Anthropic's official Claude Code CLI for AI-powered development
 - 📊 **System Monitoring** - htop for interactive process viewing
-- 🔥 **UFW Firewall** - Automated firewall configuration for security
-- 🔐 **SSH Hardening** - Secure SSH configuration for Coolify compatibility
 - 🚀 **Coolify Platform** - Self-hosted Heroku/Netlify/Vercel alternative
 - 🧹 **APT Sources Cleanup** - Removes duplicate and obsolete APT sources
+
+### Security Configuration
+- 🔥 **UFW Firewall** - Automated firewall configuration for security
+- 🔐 **SSH Hardening** - Secure SSH configuration for Coolify compatibility
 
 ## Quick Start (One-liner)
 
@@ -25,9 +30,9 @@ A comprehensive setup script for configuring Ubuntu Server with Zsh, Oh-My-Zsh, 
 rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo ./setup.sh
 ```
 
-### Security-First Installation (Firewall + SSH + Coolify)
+### Security-First Installation (Firewall + SSH)
 ```bash
-rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "10"' && sudo bash -c './setup.sh <<< "11"' && sudo bash -c './setup.sh <<< "12"'
+rm -rf server-config && git clone https://github.com/abd3lraouf/server-config.git && cd server-config && chmod +x setup.sh && sudo bash -c './setup.sh <<< "2\n3"'
 ```
 
 Or download all files with wget:
@@ -63,77 +68,64 @@ Place these files in the same directory as `setup.sh`:
 
 ## Installation Options
 
-The script provides an interactive menu with the following options:
+The script provides an organized menu system with two main sections:
 
-### 1. System Update
+### Base Configuration Options
+
+#### 1. System Update
 - Runs `apt update` to refresh package lists
 - Performs `apt upgrade -y` to update all packages
 - Executes `apt autoremove` and `apt autoclean` for cleanup
 - Essential first step for any new server setup
 
-### 2. Install Zsh
+#### 2. Install Zsh
 - Installs Zsh package
 - Sets Zsh as default shell for root and main user
 - Automatically detects the main non-root user
 
-### 3. Install Oh-My-Zsh
+#### 3. Install Oh-My-Zsh
 - Downloads and installs Oh-My-Zsh framework
 - Installs three essential plugins:
   - **zsh-autosuggestions** - Fish-like autosuggestions
   - **zsh-completions** - Additional completion definitions
   - **zsh-syntax-highlighting** - Fish shell-like syntax highlighting
 
-### 4. Install Powerlevel10k
+#### 4. Install Powerlevel10k
 - Clones the Powerlevel10k repository
 - Sets up the theme for both root and main user
 - Provides a beautiful, customizable prompt
 
-### 5. Deploy Configuration Files
+#### 5. Deploy Configuration Files
 - Copies `.zshrc` to user home directories
 - Copies `.p10k.zsh` configuration
 - Maintains proper file permissions and ownership
 - Creates backups of existing configurations
 
-### 6. Install NVM (Node Version Manager)
+#### 6. Install NVM (Node Version Manager)
 - Downloads and installs NVM v0.40.3
 - Configures NVM for both root and main user
 - Adds NVM configuration to `.zshrc`
 - Enables easy Node.js version management
 
-### 7. Install Node.js
+#### 7. Install Node.js
 - Installs latest LTS version of Node.js via NVM
 - Sets LTS as the default Node.js version
 - Configures for both root and main user
 - Required for Claude Code CLI and modern development
 
-### 8. Install Claude Code CLI
+#### 8. Install Claude Code CLI
 - Installs Claude Code CLI globally via npm (@anthropic-ai/claude-code)
 - Provides command-line access to Claude AI
 - Configures for both root and main user
 - Remember to run `claude login` after installation
 
-### 9. Install htop
+#### 9. Install htop
 - Installs htop interactive process viewer
 - Provides real-time system monitoring
 - Better alternative to traditional top command
 - Color-coded resource usage display
 
-### 10. Configure UFW Firewall
-- Installs and configures UFW (Uncomplicated Firewall)
-- Sets default policies: deny incoming, allow outgoing
-- **Only allows SSH (port 22) by default**
-- Automatically enables firewall protection
-- Additional ports opened for Coolify if installed
-
-### 11. Configure SSH for Coolify
-- Configures OpenSSH for Coolify compatibility
-- Sets `PermitRootLogin prohibit-password` for security
-- Enables `PubkeyAuthentication`
-- Generates ED25519 SSH keys if needed
-- Adds keys to authorized_keys automatically
-- **Warning**: Ensure you have SSH key access before running
-
-### 12. Install Coolify
+#### 10. Install Coolify
 - Installs Coolify self-hosting platform
 - Includes Docker and Docker Compose installation
 - Configures SSH keys for Coolify operations
@@ -146,13 +138,30 @@ The script provides an interactive menu with the following options:
   - Multi-server support
 - Access dashboard at `http://your-server-ip:8000`
 
-### 13. Clean APT Sources
+#### 11. Clean APT Sources
 - Installs `python3-apt` dependency
 - Downloads `aptsources-cleanup.pyz` if not present
 - Removes duplicate and obsolete APT sources
 - Helps maintain a clean package management system
 
-### 14. Run All Steps
+### Security Configuration Options
+
+#### 1. Configure UFW Firewall
+- Installs and configures UFW (Uncomplicated Firewall)
+- Sets default policies: deny incoming, allow outgoing
+- **Only allows SSH (port 22) by default**
+- Automatically enables firewall protection
+- Additional ports opened for Coolify if installed
+
+#### 2. Configure SSH for Coolify
+- Configures OpenSSH for Coolify compatibility
+- Sets `PermitRootLogin prohibit-password` for security
+- Enables `PubkeyAuthentication`
+- Generates ED25519 SSH keys if needed
+- Adds keys to authorized_keys automatically
+- **Warning**: Ensure you have SSH key access before running
+
+### Run All Steps
 - Executes all installation steps in sequence
 - Recommended for fresh server setups
 
@@ -175,6 +184,23 @@ Then select options from the menu:
 
 Please select an option:
 
+  1) Base Configuration
+  2) Security Configuration
+  3) Run all steps (Base + Security)
+  4) Exit
+
+Enter your choice [1-4]: 
+```
+
+### Base Configuration Menu
+
+```
+╔══════════════════════════════════════════════════╗
+║              Base Configuration                  ║
+╚══════════════════════════════════════════════════╝
+
+Please select an option:
+
   1) System Update (apt update & upgrade)
   2) Install Zsh (set as default shell)
   3) Install Oh-My-Zsh
@@ -184,19 +210,36 @@ Please select an option:
   7) Install Node.js (via NVM)
   8) Install Claude Code CLI
   9) Install htop
-  10) Configure UFW Firewall (SSH only)
-  11) Configure SSH for Coolify
-  12) Install Coolify
-  13) Clean APT sources
-  14) Run all steps
-  15) Exit
+  10) Install Coolify
+  11) Clean APT sources
+  12) Run all base steps
+  13) Back to main menu
 
-Enter your choice [1-15]: 
+Enter your choice [1-13]: 
+```
+
+### Security Configuration Menu
+
+```
+╔══════════════════════════════════════════════════╗
+║              Security Configuration              ║
+╚══════════════════════════════════════════════════╝
+
+Please select an option:
+
+  1) Configure UFW Firewall (SSH only)
+  2) Configure SSH for Coolify
+  3) Run all security steps
+  4) Back to main menu
+
+Enter your choice [1-4]: 
 ```
 
 ### Run All Steps at Once
 
-Select option 6 from the menu, or modify the script to run `run_all` function directly.
+From the main menu:
+- Select option 3 to run all steps (Base + Security)
+- Or navigate to each submenu and select "Run all" options
 
 ## Configuration Files
 

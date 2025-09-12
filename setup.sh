@@ -636,6 +636,36 @@ clean_apt_sources() {
     print_success "APT sources cleaned"
 }
 
+# Function to run all base steps
+run_all_base() {
+    print_status "Running all base installation steps..."
+    
+    detect_main_user
+    system_update
+    install_htop
+    install_zsh
+    install_oh_my_zsh
+    install_powerlevel10k
+    deploy_configs
+    install_nvm
+    install_nodejs
+    install_claude
+    install_coolify
+    clean_apt_sources
+    
+    print_success "All base steps completed successfully!"
+}
+
+# Function to run all security steps
+run_all_security() {
+    print_status "Running all security configuration steps..."
+    
+    configure_ufw
+    configure_ssh_coolify
+    
+    print_success "All security steps completed successfully!"
+}
+
 # Function to run all steps
 run_all() {
     print_status "Running all installation steps..."
@@ -658,10 +688,10 @@ run_all() {
     print_success "All steps completed successfully!"
 }
 
-# Function to display menu
-show_menu() {
+# Function to display base menu
+show_base_menu() {
     echo -e "\n${CYAN}╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║          Ubuntu Server Setup Script              ║${NC}"
+    echo -e "${CYAN}║              Base Configuration                  ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
     echo -e "\n${MAGENTA}Please select an option:${NC}\n"
     echo -e "  ${GREEN}1)${NC} System Update (apt update & upgrade)"
@@ -673,29 +703,44 @@ show_menu() {
     echo -e "  ${GREEN}7)${NC} Install Node.js (via NVM)"
     echo -e "  ${GREEN}8)${NC} Install Claude CLI"
     echo -e "  ${GREEN}9)${NC} Install htop"
-    echo -e "  ${GREEN}10)${NC} Configure UFW Firewall (SSH only)"
-    echo -e "  ${GREEN}11)${NC} Configure SSH for Coolify"
-    echo -e "  ${GREEN}12)${NC} Install Coolify"
-    echo -e "  ${GREEN}13)${NC} Clean APT sources"
-    echo -e "  ${GREEN}14)${NC} Run all steps"
-    echo -e "  ${GREEN}15)${NC} Exit"
+    echo -e "  ${GREEN}10)${NC} Install Coolify"
+    echo -e "  ${GREEN}11)${NC} Clean APT sources"
+    echo -e "  ${GREEN}12)${NC} Run all base steps"
+    echo -e "  ${GREEN}13)${NC} Back to main menu"
     echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
 }
 
-# Main script logic
-main() {
-    # Check if running with sudo
-    if [ "$EUID" -ne 0 ]; then 
-        print_error "Please run this script with sudo"
-        exit 1
-    fi
-    
-    # Detect main user at start
-    detect_main_user
-    
+# Function to display security menu
+show_security_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              Security Configuration              ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+    echo -e "\n${MAGENTA}Please select an option:${NC}\n"
+    echo -e "  ${GREEN}1)${NC} Configure UFW Firewall (SSH only)"
+    echo -e "  ${GREEN}2)${NC} Configure SSH for Coolify"
+    echo -e "  ${GREEN}3)${NC} Run all security steps"
+    echo -e "  ${GREEN}4)${NC} Back to main menu"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
+}
+
+# Function to display main menu
+show_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║          Ubuntu Server Setup Script              ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+    echo -e "\n${MAGENTA}Please select an option:${NC}\n"
+    echo -e "  ${GREEN}1)${NC} Base Configuration"
+    echo -e "  ${GREEN}2)${NC} Security Configuration"
+    echo -e "  ${GREEN}3)${NC} Run all steps (Base + Security)"
+    echo -e "  ${GREEN}4)${NC} Exit"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
+}
+
+# Base menu handler
+handle_base_menu() {
     while true; do
-        show_menu
-        read -p "Enter your choice [1-15]: " choice
+        show_base_menu
+        read -p "Enter your choice [1-13]: " choice
         
         case $choice in
             1)
@@ -726,31 +771,98 @@ main() {
                 install_htop
                 ;;
             10)
-                configure_ufw
-                ;;
-            11)
-                configure_ssh_coolify
-                ;;
-            12)
                 install_coolify
                 ;;
-            13)
+            11)
                 clean_apt_sources
                 ;;
-            14)
+            12)
+                run_all_base
+                ;;
+            13)
+                return
+                ;;
+            *)
+                print_error "Invalid option. Please select 1-13"
+                ;;
+        esac
+        
+        if [ "$choice" != "13" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
+    done
+}
+
+# Security menu handler
+handle_security_menu() {
+    while true; do
+        show_security_menu
+        read -p "Enter your choice [1-4]: " choice
+        
+        case $choice in
+            1)
+                configure_ufw
+                ;;
+            2)
+                configure_ssh_coolify
+                ;;
+            3)
+                run_all_security
+                ;;
+            4)
+                return
+                ;;
+            *)
+                print_error "Invalid option. Please select 1-4"
+                ;;
+        esac
+        
+        if [ "$choice" != "4" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
+    done
+}
+
+# Main script logic
+main() {
+    # Check if running with sudo
+    if [ "$EUID" -ne 0 ]; then 
+        print_error "Please run this script with sudo"
+        exit 1
+    fi
+    
+    # Detect main user at start
+    detect_main_user
+    
+    while true; do
+        show_menu
+        read -p "Enter your choice [1-4]: " choice
+        
+        case $choice in
+            1)
+                handle_base_menu
+                ;;
+            2)
+                handle_security_menu
+                ;;
+            3)
                 run_all
                 ;;
-            15)
+            4)
                 print_status "Exiting..."
                 exit 0
                 ;;
             *)
-                print_error "Invalid option. Please select 1-15"
+                print_error "Invalid option. Please select 1-4"
                 ;;
         esac
         
-        echo -e "\n${YELLOW}Press Enter to continue...${NC}"
-        read
+        if [ "$choice" != "4" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
     done
 }
 
