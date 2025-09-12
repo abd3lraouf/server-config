@@ -2382,16 +2382,19 @@ EOF
 
 # Main script logic
 main() {
-    # Initialize logging first
-    initialize_logging
-    
-    # Parse command-line arguments
+    # Parse command-line arguments first (before sudo check for help/version)
     parse_arguments "$@"
     
-    # Check if running with sudo
+    # Initialize logging only after parsing args (may not need sudo for help)
+    if [ "$EUID" -eq 0 ]; then
+        initialize_logging
+    fi
+    
+    # Check if running with sudo (but allow help and version without sudo)
     if [ "$EUID" -ne 0 ]; then 
         print_error "This script must be run with sudo"
         print_status "Usage: sudo $0 [options]"
+        print_status "Run '$0 --help' for more information"
         exit 1
     fi
     
