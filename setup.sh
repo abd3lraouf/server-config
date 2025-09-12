@@ -135,6 +135,18 @@ initialize_logging() {
     log_message "INFO" "==============================================="
 }
 
+# Helper function to get the correct SSH service name
+get_ssh_service_name() {
+    if systemctl is-active --quiet ssh; then
+        echo "ssh"
+    elif systemctl is-active --quiet sshd; then
+        echo "sshd"
+    else
+        # Default to ssh for Ubuntu
+        echo "ssh"
+    fi
+}
+
 # Function to validate Ubuntu version
 validate_ubuntu_version() {
     print_status "Validating Ubuntu version..."
@@ -2183,7 +2195,8 @@ MaxSessions 4
 AllowUsers ${MAIN_USER}
 EOF
     
-    sudo systemctl reload sshd
+    local ssh_service=$(get_ssh_service_name)
+    sudo systemctl reload "$ssh_service"
     
     print_success "CIS benchmarks applied successfully"
     log_action "CIS benchmark implementation completed" "SUCCESS"
@@ -2328,7 +2341,8 @@ emergency_rollback() {
     # Restore SSH configuration
     if [ -f "$BACKUP_DIR/sshd_config.backup" ]; then
         sudo cp "$BACKUP_DIR/sshd_config.backup" /etc/ssh/sshd_config
-        sudo systemctl restart sshd
+        local ssh_service=$(get_ssh_service_name)
+        sudo systemctl restart "$ssh_service"
     fi
     
     # Disable restrictive firewall rules
