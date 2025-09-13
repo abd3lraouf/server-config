@@ -1656,7 +1656,7 @@ EOF
         return 1
     fi
     
-    if ! sudo $docker_compose_cmd pull; then
+    if ! eval "sudo $docker_compose_cmd pull"; then
         print_warning "Failed to pull latest cloudflared image"
     fi
     
@@ -1667,7 +1667,7 @@ EOF
         return 1
     fi
     
-    if sudo $docker_compose_cmd up -d; then
+    if eval "sudo $docker_compose_cmd up -d"; then
         print_success "Cloudflare Tunnel started"
     else
         print_error "Failed to start Cloudflare Tunnel"
@@ -1772,7 +1772,7 @@ EOF
         print_error "Docker Compose is not installed"
         return 1
     fi
-    sudo $docker_compose_cmd up -d
+    eval "sudo $docker_compose_cmd up -d"
     
     # Wait for CrowdSec to start
     sleep 10
