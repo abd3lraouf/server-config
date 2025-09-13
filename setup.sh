@@ -1475,11 +1475,71 @@ setup_cloudflare_native() {
     
     print_status "Setting up Cloudflare Tunnel as native service..."
     
-    # Check if service already exists and remove it
-    if systemctl list-units --full -all | grep -q cloudflared.service; then
-        print_status "Removing existing cloudflared service..."
-        sudo cloudflared service uninstall 2>/dev/null || true
+    # Check if service already exists
+    if [ -f /etc/systemd/system/cloudflared.service ]; then
+        print_warning "Existing cloudflared service detected"
+        
+        # Check if it's running
+        if systemctl is-active --quiet cloudflared; then
+            print_status "Service is currently running"
+            
+            # Try to detect if it's using the same token
+            local current_token=$(grep -oP 'token\s+\K[^\s]+' /etc/systemd/system/cloudflared.service 2>/dev/null || echo "")
+            if [ "$current_token" = "$token" ]; then
+                print_success "Service already configured with the same token"
+                print_status "Current service status:"
+                sudo systemctl status cloudflared --no-pager | head -10
+                return 0
+            fi
+        fi
+        
+        # Handle existing service
+        if [[ "$INTERACTIVE_MODE" == true ]]; then
+            echo -e "${YELLOW}Existing cloudflared service found. Options:${NC}"
+            echo "1) Replace existing service"
+            echo "2) Keep existing service"
+            echo "3) View current service status"
+            read -p "Select option [1-3]: " choice
+            
+            case $choice in
+                1)
+                    print_status "Replacing existing service..."
+                    ;;
+                2)
+                    print_status "Keeping existing service"
+                    return 0
+                    ;;
+                3)
+                    sudo systemctl status cloudflared --no-pager
+                    print_status "Keeping existing service"
+                    return 0
+                    ;;
+                *)
+                    print_error "Invalid option"
+                    return 1
+                    ;;
+            esac
+        else
+            print_status "Replacing existing service (non-interactive mode)..."
+        fi
+        
+        # Stop and remove existing service
+        print_status "Stopping existing service..."
         sudo systemctl stop cloudflared 2>/dev/null || true
+        sudo systemctl disable cloudflared 2>/dev/null || true
+        
+        # Try cloudflared uninstall first (for native services)
+        sudo cloudflared service uninstall 2>/dev/null || true
+        
+        # Remove service file if still exists (for custom services)
+        if [ -f /etc/systemd/system/cloudflared.service ]; then
+            print_status "Removing custom service file..."
+            sudo rm /etc/systemd/system/cloudflared.service
+            sudo systemctl daemon-reload
+        fi
+        
+        # Wait a moment for cleanup
+        sleep 2
     fi
     
     # Install service with token
