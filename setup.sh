@@ -158,6 +158,25 @@ get_docker_compose_cmd() {
     fi
 }
 
+# Helper function to ensure Docker network exists
+ensure_docker_network() {
+    local network_name="${1:-internal}"
+    
+    if ! sudo docker network ls --format '{{.Name}}' | grep -q "^${network_name}$"; then
+        print_status "Creating Docker network: $network_name..."
+        if sudo docker network create "$network_name" >/dev/null 2>&1; then
+            print_success "Docker network '$network_name' created"
+            return 0
+        else
+            print_error "Failed to create Docker network '$network_name'"
+            return 1
+        fi
+    else
+        print_status "Docker network '$network_name' already exists"
+        return 0
+    fi
+}
+
 # ============================================================================
 # Input Validation Functions
 # ============================================================================
@@ -2226,7 +2245,7 @@ services:
       - crowdsec-data:/var/lib/crowdsec/data/
       - /var/log/traefik:/var/log/traefik:ro
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8090:8080"
     networks:
       - internal
     logging:
@@ -2243,6 +2262,9 @@ networks:
   internal:
     external: true
 EOF
+    
+    # Ensure internal network exists
+    ensure_docker_network "internal"
     
     # Start CrowdSec
     print_status "Starting CrowdSec..."
@@ -2359,10 +2381,8 @@ networks:
     external: true
 EOF
     
-    # Create internal Docker network if it doesn't exist
-    if ! docker network ls | grep -q internal; then
-        sudo docker network create internal
-    fi
+    # Ensure internal network exists
+    ensure_docker_network "internal"
     
     log_action "Traefik security configuration completed" "SUCCESS"
     print_success "Traefik configured with security middleware"
