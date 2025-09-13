@@ -2543,24 +2543,35 @@ EOF
 install_monitoring_tools() {
     print_status "Installing security monitoring tools..."
     log_action "Starting monitoring tools installation" "INFO"
-    
+
     # Install Lynis
     print_status "Installing Lynis for security auditing..."
     sudo apt-get install -y lynis
-    
+    print_success "Lynis installed successfully"
+
     # Install AIDE
     print_status "Installing AIDE for file integrity monitoring..."
     sudo apt-get install -y aide aide-common
-    
+    print_success "AIDE packages installed"
+
     # Initialize AIDE database
-    print_status "Initializing AIDE database (this may take a while)..."
-    sudo aideinit -y -f
-    
+    print_status "Starting AIDE database initialization..."
+    print_warning "AIDE initialization will run in the background and may take 10-30 minutes"
+    print_status "The system will continue with the setup while AIDE initializes"
+
+    # Run AIDE initialization in background
+    nohup sudo aideinit -y -f > /var/log/aide-init.log 2>&1 &
+    local aide_pid=$!
+    print_status "AIDE initialization started (PID: $aide_pid)"
+    print_status "You can check progress with: tail -f /var/log/aide-init.log"
+
     # Install Logwatch
     print_status "Installing Logwatch for log analysis..."
     sudo apt-get install -y logwatch
-    
+    print_success "Logwatch installed successfully"
+
     # Configure Logwatch
+    print_status "Configuring Logwatch..."
     cat << EOF | sudo tee /etc/logwatch/conf/logwatch.conf > /dev/null
 LogDir = /var/log
 TmpDir = /var/cache/logwatch
@@ -2576,10 +2587,14 @@ Service = "-zz-network"
 Service = "-zz-sys"
 Service = "-eximstats"
 EOF
-    
+    print_success "Logwatch configured"
+
     # Create monitoring scripts
-    print_status "Creating monitoring scripts..."
-    
+    print_status "Creating monitoring scripts directory..."
+    sudo mkdir -p "$ZERO_TRUST_DIR/scripts"
+
+    print_status "Creating daily security check script..."
+
     # Daily security check script
     cat << 'EOF' | sudo tee "$ZERO_TRUST_DIR/scripts/daily-security-check.sh" > /dev/null
 #!/bin/bash
@@ -2612,14 +2627,60 @@ aide --check 2>&1 >> "$LOG_FILE"
 
 echo "=== Check completed ===" >> "$LOG_FILE"
 EOF
-    
+
     sudo chmod +x "$ZERO_TRUST_DIR/scripts/daily-security-check.sh"
-    
+    print_success "Daily security check script created"
+
     # Add to cron
+    print_status "Adding daily security check to cron..."
     (crontab -l 2>/dev/null; echo "0 2 * * * $ZERO_TRUST_DIR/scripts/daily-security-check.sh") | crontab -
-    
+    print_success "Cron job configured for daily security checks at 2 AM"
+
+    # Final status
+    print_success "All monitoring tools installed successfully!"
+    print_warning "Remember: AIDE is still initializing in the background"
+    print_status "Check AIDE status with: sudo ps aux | grep aideinit"
+
     log_action "Monitoring tools installation completed" "SUCCESS"
-    print_success "Security monitoring tools installed"
+    return 0
+}
+
+# Function to check AIDE initialization status
+check_aide_status() {
+    print_status "Checking AIDE initialization status..."
+
+    # Check if aideinit is still running
+    if pgrep -f "aideinit" > /dev/null; then
+        print_warning "AIDE is still initializing..."
+        local aide_pid=$(pgrep -f "aideinit")
+        print_status "AIDE process PID: $aide_pid"
+
+        # Check log file for progress
+        if [ -f /var/log/aide-init.log ]; then
+            local last_line=$(tail -1 /var/log/aide-init.log)
+            print_status "Last activity: $last_line"
+        fi
+
+        print_status "To monitor progress: tail -f /var/log/aide-init.log"
+        return 1
+    else
+        # Check if AIDE database exists
+        if [ -f /var/lib/aide/aide.db ] || [ -f /var/lib/aide/aide.db.new ]; then
+            print_success "AIDE initialization complete!"
+            print_status "AIDE database is ready for integrity checking"
+
+            # Check database size
+            if [ -f /var/lib/aide/aide.db.new ]; then
+                local db_size=$(du -h /var/lib/aide/aide.db.new | cut -f1)
+                print_status "Database size: $db_size"
+            fi
+            return 0
+        else
+            print_error "AIDE initialization may have failed"
+            print_status "Check /var/log/aide-init.log for errors"
+            return 2
+        fi
+    fi
 }
 
 # Function 21: Validate Zero Trust security
@@ -3394,7 +3455,8 @@ show_security_menu() {
     echo -e "  ${GREEN}14)${NC} Generate Compliance Report"
     echo -e "  ${GREEN}15)${NC} Emergency Rollback"
     echo -e "  ${GREEN}16)${NC} Container Runtime Setup (Docker/Podman)"
-    echo -e "  ${GREEN}17)${NC} Back to main menu"
+    echo -e "  ${GREEN}17)${NC} Check AIDE Status"
+    echo -e "  ${GREEN}18)${NC} Back to main menu"
     echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
 }
 
@@ -3458,7 +3520,7 @@ handle_base_menu() {
                 return
                 ;;
             *)
-                print_error "Invalid option. Please select 1-17"
+                print_error "Invalid option. Please select 1-18"
                 ;;
         esac
         
@@ -3473,7 +3535,7 @@ handle_base_menu() {
 handle_security_menu() {
     while true; do
         show_security_menu
-        read -p "Enter your choice [1-17]: " choice
+        read -p "Enter your choice [1-18]: " choice
         
         case $choice in
             1)
@@ -3549,10 +3611,13 @@ handle_security_menu() {
                 fi
                 ;;
             17)
+                check_aide_status
+                ;;
+            18)
                 return
                 ;;
             *)
-                print_error "Invalid option. Please select 1-17"
+                print_error "Invalid option. Please select 1-18"
                 ;;
         esac
         
