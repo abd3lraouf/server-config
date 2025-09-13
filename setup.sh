@@ -158,6 +158,232 @@ get_docker_compose_cmd() {
     fi
 }
 
+# ============================================================================
+# Input Validation Functions
+# ============================================================================
+
+# Validate email address format
+validate_email() {
+    local email="$1"
+    local email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    
+    # Check if empty
+    if [ -z "$email" ]; then
+        return 1
+    fi
+    
+    # Check format
+    if ! [[ "$email" =~ $email_regex ]]; then
+        return 1
+    fi
+    
+    # Check length (max 254 chars per RFC)
+    if [ ${#email} -gt 254 ]; then
+        return 1
+    fi
+    
+    # Check for dangerous characters
+    if echo "$email" | grep -qE '[;|&$`(){}\[\]<>]'; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate domain name format
+validate_domain() {
+    local domain="$1"
+    # Allow subdomain.example.com or example.com format
+    local domain_regex='^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$'
+    
+    # Check if empty
+    if [ -z "$domain" ]; then
+        return 1
+    fi
+    
+    # Check format
+    if ! [[ "$domain" =~ $domain_regex ]]; then
+        return 1
+    fi
+    
+    # Check length (max 253 chars)
+    if [ ${#domain} -gt 253 ]; then
+        return 1
+    fi
+    
+    # Check for dangerous characters
+    if echo "$domain" | grep -qE "[;|&$\`(){}\[\]<>'\"\\\\]"; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate token/API key format
+validate_token() {
+    local token="$1"
+    local max_length="${2:-2000}"
+    
+    # Check if empty
+    if [ -z "$token" ]; then
+        return 1
+    fi
+    
+    # Check length
+    if [ ${#token} -gt $max_length ]; then
+        return 1
+    fi
+    
+    # Allow only safe characters for tokens (base64 and JWT common chars)
+    if ! [[ "$token" =~ ^[A-Za-z0-9_=./-]+$ ]]; then
+        return 1
+    fi
+    
+    # Check for script output contamination
+    if echo "$token" | grep -qE '(PHASE|INFO|WARNING|ERROR|\[.*\]|▶|→)'; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate Linux username
+validate_username() {
+    local username="$1"
+    
+    # Check if empty
+    if [ -z "$username" ]; then
+        return 1
+    fi
+    
+    # Check format (Linux username rules)
+    if ! [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+        return 1
+    fi
+    
+    # Check if user exists
+    if ! id "$username" &>/dev/null; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate tunnel/service names
+validate_name() {
+    local name="$1"
+    local max_length="${2:-63}"
+    
+    # Check if empty
+    if [ -z "$name" ]; then
+        return 1
+    fi
+    
+    # Allow alphanumeric, dash, underscore, and dot
+    if ! [[ "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,61}[a-zA-Z0-9]$ ]]; then
+        # Also allow single word names
+        if ! [[ "$name" =~ ^[a-zA-Z0-9]+$ ]]; then
+            return 1
+        fi
+    fi
+    
+    # Check length
+    if [ ${#name} -gt $max_length ]; then
+        return 1
+    fi
+    
+    # Check for dangerous characters
+    if echo "$name" | grep -qE "[;|&$\`(){}\[\]<>'\"\\\\]"; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate Tailscale tag name
+validate_tag() {
+    local tag="$1"
+    
+    # Check if empty (tags are optional)
+    if [ -z "$tag" ]; then
+        return 0
+    fi
+    
+    # Remove 'tag:' prefix if present for validation
+    tag="${tag#tag:}"
+    
+    # Tag must be alphanumeric with optional dashes
+    if ! [[ "$tag" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]$ ]]; then
+        # Also allow single word tags
+        if ! [[ "$tag" =~ ^[a-zA-Z0-9]+$ ]]; then
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Validate menu choice
+validate_menu_choice() {
+    local choice="$1"
+    local min="$2"
+    local max="$3"
+    
+    # Check if empty
+    if [ -z "$choice" ]; then
+        return 1
+    fi
+    
+    # Check if numeric
+    if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    
+    # Check range
+    if [ "$choice" -lt "$min" ] || [ "$choice" -gt "$max" ]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Validate yes/no input
+validate_yes_no() {
+    local input="$1"
+    
+    if [[ "$input" =~ ^[YyNn]$ ]]; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Validate confirmation input
+validate_confirmation() {
+    local input="$1"
+    local expected="$2"
+    
+    if [ "$input" = "$expected" ]; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Sanitize input for safe command usage
+sanitize_for_command() {
+    local input="$1"
+    # Use printf %q to safely quote the string
+    printf '%q' "$input"
+}
+
+# Sanitize input for safe file usage
+sanitize_for_file() {
+    local input="$1"
+    # Remove dangerous characters for file operations
+    echo "$input" | sed 's/[;&|`$(){}[\]<>"\x27\\]//g'
+}
+
 # Function to validate Ubuntu version
 validate_ubuntu_version() {
     print_status "Validating Ubuntu version..."
@@ -201,16 +427,24 @@ detect_main_user() {
     if [ -z "$MAIN_USER" ]; then
         print_warning "Could not detect main user automatically"
         if [[ "$INTERACTIVE_MODE" == true ]]; then
-            read -p "Please enter the username of the main user: " MAIN_USER
+            while true; do
+                read -p "Please enter the username of the main user: " MAIN_USER
+                if validate_username "$MAIN_USER"; then
+                    break
+                else
+                    print_error "Invalid username or user does not exist. Username must be lowercase, start with a letter, and exist on the system."
+                fi
+            done
         else
             print_error "Main user detection failed in non-interactive mode"
             return 1
         fi
-    fi
-    
-    if ! id "$MAIN_USER" &>/dev/null; then
-        print_error "User $MAIN_USER does not exist"
-        return 1
+    else
+        # Validate the auto-detected user
+        if ! validate_username "$MAIN_USER"; then
+            print_error "Auto-detected user $MAIN_USER is invalid"
+            return 1
+        fi
     fi
     
     print_success "Main user detected: $MAIN_USER"
@@ -226,25 +460,52 @@ configure_interactively() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}\n"
     
     # Admin email
-    read -p "Enter admin email for notifications: " ADMIN_EMAIL
-    while ! [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; do
-        print_error "Invalid email format"
+    while true; do
         read -p "Enter admin email for notifications: " ADMIN_EMAIL
+        if validate_email "$ADMIN_EMAIL"; then
+            break
+        else
+            print_error "Invalid email format. Please enter a valid email address."
+        fi
     done
     
     # Domain configuration
-    read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
+    while true; do
+        read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
+        if [ -z "$DOMAIN_NAME" ]; then
+            print_warning "Domain name is optional. Press Enter to skip."
+            break
+        elif validate_domain "$DOMAIN_NAME"; then
+            break
+        else
+            print_error "Invalid domain format. Use format: example.com or subdomain.example.com"
+        fi
+    done
     
     # Cloudflare configuration
     echo -e "\n${YELLOW}Cloudflare Configuration${NC}"
     echo "1) Use existing Cloudflare tunnel token"
     echo "2) Login to Cloudflare to create new tunnel"
     echo "3) Skip Cloudflare setup"
-    read -p "Select option [1-3]: " cf_option
+    while true; do
+        read -p "Select option [1-3]: " cf_option
+        if validate_menu_choice "$cf_option" 1 3; then
+            break
+        else
+            print_error "Invalid choice. Please select 1, 2, or 3."
+        fi
+    done
     
     case $cf_option in
         1)
-            read -p "Enter Cloudflare tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
+            while true; do
+                read -p "Enter Cloudflare tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
+                if validate_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
+                    break
+                else
+                    print_error "Invalid token format. Token should contain only alphanumeric characters and -_=./"
+                fi
+            done
             ;;
         2)
             print_status "Preparing Cloudflare login..."
@@ -260,11 +521,25 @@ configure_interactively() {
     echo "1) Use existing Tailscale auth key"
     echo "2) Login to Tailscale interactively"
     echo "3) Skip Tailscale setup"
-    read -p "Select option [1-3]: " ts_option
+    while true; do
+        read -p "Select option [1-3]: " ts_option
+        if validate_menu_choice "$ts_option" 1 3; then
+            break
+        else
+            print_error "Invalid choice. Please select 1, 2, or 3."
+        fi
+    done
     
     case $ts_option in
         1)
-            read -p "Enter Tailscale auth key: " TAILSCALE_AUTH_KEY
+            while true; do
+                read -p "Enter Tailscale auth key: " TAILSCALE_AUTH_KEY
+                if validate_token "$TAILSCALE_AUTH_KEY"; then
+                    break
+                else
+                    print_error "Invalid auth key format. Key should contain only alphanumeric characters and -_=./"
+                fi
+            done
             ;;
         2)
             print_status "Will configure Tailscale interactively during setup"
@@ -327,7 +602,14 @@ configure_cloudflare_interactive() {
     cloudflared tunnel login
     
     # Create tunnel
-    read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
+    while true; do
+        read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
+        if validate_name "$CLOUDFLARE_TUNNEL_NAME"; then
+            break
+        else
+            print_error "Invalid tunnel name. Use only alphanumeric characters, dashes, dots, and underscores."
+        fi
+    done
     cloudflared tunnel create "$CLOUDFLARE_TUNNEL_NAME"
     
     # Get tunnel credentials
@@ -1237,12 +1519,20 @@ install_tailscale() {
         read -p "Do you want to use Tailscale tags? [y/N]: " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            read -p "Enter tag name (e.g., 'server' for tag:server, or press Enter to skip): " tag_name
-            if [ -n "$tag_name" ]; then
-                use_tags=true
-                # Remove 'tag:' prefix if user included it
-                tag_name=${tag_name#tag:}
-                tag_params="--advertise-tags=tag:${tag_name}"
+            while true; do
+                read -p "Enter tag name (e.g., 'server' for tag:server, or press Enter to skip): " tag_name
+                if [ -z "$tag_name" ]; then
+                    break  # Allow skipping
+                elif validate_tag "$tag_name"; then
+                    use_tags=true
+                    # Remove 'tag:' prefix if user included it
+                    tag_name=${tag_name#tag:}
+                    tag_params="--advertise-tags=tag:${tag_name}"
+                    break
+                else
+                    print_error "Invalid tag name. Use only alphanumeric characters and dashes."
+                fi
+            done
             else
                 print_status "No tag name provided, continuing without tags"
             fi
@@ -1609,7 +1899,14 @@ setup_cloudflare_tunnel() {
         
         case $auth_option in
             1)
-                read -p "Enter your Cloudflare tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
+                while true; do
+                    read -p "Enter your Cloudflare tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
+                    if validate_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
+                        break
+                    else
+                        print_error "Invalid token format. Token should contain only alphanumeric characters and -_=./"
+                    fi
+                done
                 if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
                     print_error "No token provided"
                     return 1
@@ -1634,7 +1931,14 @@ setup_cloudflare_tunnel() {
                     return 1
                 fi
                 
-                read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
+                while true; do
+                    read -p "Enter a name for your tunnel: " CLOUDFLARE_TUNNEL_NAME
+                    if validate_name "$CLOUDFLARE_TUNNEL_NAME"; then
+                        break
+                    else
+                        print_error "Invalid tunnel name. Use only alphanumeric characters, dashes, dots, and underscores."
+                    fi
+                done
         
         # Check if tunnel already exists
         if cloudflared tunnel list | grep -q "$CLOUDFLARE_TUNNEL_NAME"; then
@@ -1642,7 +1946,14 @@ setup_cloudflare_tunnel() {
             read -p "Use existing tunnel? [Y/n]: " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Nn]$ ]]; then
-                read -p "Enter a new tunnel name: " CLOUDFLARE_TUNNEL_NAME
+                while true; do
+                    read -p "Enter a new tunnel name: " CLOUDFLARE_TUNNEL_NAME
+                    if validate_name "$CLOUDFLARE_TUNNEL_NAME"; then
+                        break
+                    else
+                        print_error "Invalid tunnel name. Use only alphanumeric characters, dashes, dots, and underscores."
+                    fi
+                done
                 cloudflared tunnel create "$CLOUDFLARE_TUNNEL_NAME"
             fi
         else
@@ -1655,7 +1966,16 @@ setup_cloudflare_tunnel() {
         
         if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
             print_warning "Failed to retrieve token automatically"
-            read -p "Enter tunnel token manually (or press Enter to skip): " CLOUDFLARE_TUNNEL_TOKEN
+            while true; do
+                read -p "Enter tunnel token manually (or press Enter to skip): " CLOUDFLARE_TUNNEL_TOKEN
+                if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+                    break  # Allow skipping
+                elif validate_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
+                    break
+                else
+                    print_error "Invalid token format. Token should contain only alphanumeric characters and -_=./"
+                fi
+            done
             if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
                 print_error "No tunnel token available"
                 return 1
@@ -1697,8 +2017,15 @@ setup_cloudflare_tunnel() {
         echo -e "${YELLOW}Choose installation method:${NC}"
         echo "1) Native systemd service (recommended)"
         echo "2) Docker Compose (requires Docker)"
-        read -p "Select option [1-2] (default: 1): " install_method
-        install_method=${install_method:-1}
+        while true; do
+            read -p "Select option [1-2] (default: 1): " install_method
+            install_method=${install_method:-1}
+            if validate_menu_choice "$install_method" 1 2; then
+                break
+            else
+                print_error "Invalid choice. Please select 1 or 2."
+            fi
+        done
     else
         # Default to native if not interactive
         install_method=1
@@ -1706,9 +2033,23 @@ setup_cloudflare_tunnel() {
     
     # Validate domain if provided
     if [ -n "$DOMAIN_NAME" ]; then
-        print_status "Configuring tunnel for domain: $DOMAIN_NAME"
+        if validate_domain "$DOMAIN_NAME"; then
+            print_status "Configuring tunnel for domain: $DOMAIN_NAME"
+        else
+            print_error "Invalid domain format: $DOMAIN_NAME"
+            DOMAIN_NAME=""  # Clear invalid domain
+        fi
     elif [[ "$INTERACTIVE_MODE" == true ]] && [ -z "$DOMAIN_NAME" ]; then
-        read -p "Enter your domain name (optional): " DOMAIN_NAME
+        while true; do
+            read -p "Enter your domain name (optional, press Enter to skip): " DOMAIN_NAME
+            if [ -z "$DOMAIN_NAME" ]; then
+                break  # Allow skipping
+            elif validate_domain "$DOMAIN_NAME"; then
+                break
+            else
+                print_error "Invalid domain format. Use format: example.com or subdomain.example.com"
+            fi
+        done
     fi
     
     # Install based on chosen method
