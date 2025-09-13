@@ -78,6 +78,7 @@ log_message() {
             echo "$message"
             ;;
     esac
+    return 0  # Always return success
 }
 
 print_status() {
@@ -297,18 +298,20 @@ initialize_configuration() {
     load_config_file || true
     
     # Then override with environment variables if set (check both old and new names)
-    [[ -n "${ADMIN_EMAIL:-}" ]] && ADMIN_EMAIL="${ADMIN_EMAIL}"
-    [[ -n "${EMAIL:-}" ]] && ADMIN_EMAIL="${EMAIL}"
-    [[ -n "${DOMAIN_NAME:-}" ]] && DOMAIN_NAME="${DOMAIN_NAME}"
-    [[ -n "${DOMAIN:-}" ]] && DOMAIN_NAME="${DOMAIN}"
-    [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]] && CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN}"
-    [[ -n "${CLOUDFLARE_TOKEN:-}" ]] && CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TOKEN}"
-    [[ -n "${TAILSCALE_AUTH_KEY:-}" ]] && TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY}"
-    [[ -n "${TAILSCALE_KEY:-}" ]] && TAILSCALE_AUTH_KEY="${TAILSCALE_KEY}"
+    # Use if statements to avoid exit on empty variables with set -e
+    if [[ -n "${ADMIN_EMAIL:-}" ]]; then ADMIN_EMAIL="${ADMIN_EMAIL}"; fi
+    if [[ -n "${EMAIL:-}" ]]; then ADMIN_EMAIL="${EMAIL}"; fi
+    if [[ -n "${DOMAIN_NAME:-}" ]]; then DOMAIN_NAME="${DOMAIN_NAME}"; fi
+    if [[ -n "${DOMAIN:-}" ]]; then DOMAIN_NAME="${DOMAIN}"; fi
+    if [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]]; then CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN}"; fi
+    if [[ -n "${CLOUDFLARE_TOKEN:-}" ]]; then CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TOKEN}"; fi
+    if [[ -n "${TAILSCALE_AUTH_KEY:-}" ]]; then TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY}"; fi
+    if [[ -n "${TAILSCALE_KEY:-}" ]]; then TAILSCALE_AUTH_KEY="${TAILSCALE_KEY}"; fi
     
     # Command line arguments will override later in parse_arguments()
-    
+
     print_debug "Configuration initialized"
+    return 0  # Ensure function always succeeds
 }
 
 # ============================================================================
@@ -3711,10 +3714,10 @@ main() {
     
     # Initialize configuration (loads from file if exists)
     initialize_configuration
-    
+
     # Parse command-line arguments (overrides config file values)
     parse_arguments "$@"
-    
+
     # Initialize logging only after parsing args (may not need sudo for help)
     if [ "$EUID" -eq 0 ]; then
         initialize_logging
