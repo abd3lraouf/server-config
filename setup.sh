@@ -1469,16 +1469,61 @@ validate_and_restrict_ssh() {
     fi
 }
 
+# Helper function to setup Cloudflare tunnel using native service
+setup_cloudflare_native() {
+    local token="$1"
+    
+    print_status "Setting up Cloudflare Tunnel as native service..."
+    
+    # Check if service already exists and remove it
+    if systemctl list-units --full -all | grep -q cloudflared.service; then
+        print_status "Removing existing cloudflared service..."
+        sudo cloudflared service uninstall 2>/dev/null || true
+        sudo systemctl stop cloudflared 2>/dev/null || true
+    fi
+    
+    # Install service with token
+    print_status "Installing cloudflared service..."
+    if sudo cloudflared service install "$token"; then
+        print_success "Cloudflared service installed"
+    else
+        print_error "Failed to install cloudflared service"
+        return 1
+    fi
+    
+    # Start and enable service
+    sudo systemctl enable cloudflared
+    if sudo systemctl start cloudflared; then
+        print_success "Cloudflared service started"
+    else
+        print_error "Failed to start cloudflared service"
+        return 1
+    fi
+    
+    # Check status
+    sleep 3
+    if systemctl is-active --quiet cloudflared; then
+        print_success "Cloudflare Tunnel running as native service"
+        sudo systemctl status cloudflared --no-pager | head -10
+        return 0
+    else
+        print_error "Cloudflared service is not running"
+        sudo journalctl -u cloudflared --no-pager | tail -20
+        return 1
+    fi
+}
+
 # Function 17: Setup Cloudflare Tunnel with interactive support
 setup_cloudflare_tunnel() {
     print_status "Setting up Cloudflare Tunnel..."
     log_action "Starting Cloudflare Tunnel setup" "INFO"
     
-    # Check if Docker is installed first
-    if ! command -v docker &> /dev/null; then
-        print_error "Docker is required for Cloudflare Tunnel"
-        print_status "Please install Docker first or run the Docker installation step"
-        return 1
+    # Install cloudflared if not present
+    if ! command -v cloudflared &> /dev/null; then
+        print_status "Installing cloudflared..."
+        curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+        sudo dpkg -i cloudflared.deb
+        rm cloudflared.deb
     fi
     
     # Handle different setup scenarios
@@ -1494,13 +1539,6 @@ setup_cloudflare_tunnel() {
         fi
     elif [[ "$INTERACTIVE_MODE" == true ]]; then
         print_status "No tunnel token found. Setting up interactively..."
-        
-        if ! command -v cloudflared &> /dev/null; then
-            print_status "Installing cloudflared..."
-            curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-            sudo dpkg -i cloudflared.deb
-            rm cloudflared.deb
-        fi
         
         # Ask for authentication method
         echo -e "${YELLOW}Cloudflare Tunnel Setup Options:${NC}"
@@ -1581,6 +1619,31 @@ setup_cloudflare_tunnel() {
         return 1
     fi
     
+    # Validate token is not empty and doesn't contain script output
+    if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+        print_error "No tunnel token available"
+        return 1
+    fi
+    
+    # Check if token contains obvious script output (safety check)
+    if echo "$CLOUDFLARE_TUNNEL_TOKEN" | grep -qE '(PHASE|INFO|WARNING|ERROR|\[|\]|▶)'; then
+        print_error "Token appears to be corrupted with script output"
+        print_error "Please provide a valid token"
+        return 1
+    fi
+    
+    # Ask for installation method
+    if [[ "$INTERACTIVE_MODE" == true ]]; then
+        echo -e "${YELLOW}Choose installation method:${NC}"
+        echo "1) Native systemd service (recommended)"
+        echo "2) Docker Compose (requires Docker)"
+        read -p "Select option [1-2] (default: 1): " install_method
+        install_method=${install_method:-1}
+    else
+        # Default to native if not interactive
+        install_method=1
+    fi
+    
     # Validate domain if provided
     if [ -n "$DOMAIN_NAME" ]; then
         print_status "Configuring tunnel for domain: $DOMAIN_NAME"
@@ -1588,13 +1651,28 @@ setup_cloudflare_tunnel() {
         read -p "Enter your domain name (optional): " DOMAIN_NAME
     fi
     
-    # Create Docker Compose configuration
-    print_status "Creating Cloudflare Tunnel Docker configuration..."
-    
-    local compose_file="$ZERO_TRUST_DIR/configs/cloudflare/docker-compose.yml"
-    sudo mkdir -p "$(dirname "$compose_file")"
-    
-    cat << EOF | sudo tee "$compose_file" > /dev/null
+    # Install based on chosen method
+    if [ "$install_method" = "1" ]; then
+        # Use native systemd service
+        setup_cloudflare_native "$CLOUDFLARE_TUNNEL_TOKEN"
+        return $?
+    elif [ "$install_method" = "2" ]; then
+        # Check if Docker is installed
+        if ! command -v docker &> /dev/null; then
+            print_error "Docker is required for Docker Compose installation"
+            print_status "Falling back to native installation..."
+            setup_cloudflare_native "$CLOUDFLARE_TUNNEL_TOKEN"
+            return $?
+        fi
+        
+        # Continue with Docker Compose setup
+        print_status "Creating Cloudflare Tunnel Docker configuration..."
+        
+        local compose_file="$ZERO_TRUST_DIR/configs/cloudflare/docker-compose.yml"
+        sudo mkdir -p "$(dirname "$compose_file")"
+        
+        # Create docker-compose.yml with quoted EOF to prevent variable expansion
+        cat << 'DOCKER_EOF' | sed "s|TOKEN_PLACEHOLDER|${CLOUDFLARE_TUNNEL_TOKEN}|g" | sudo tee "$compose_file" > /dev/null
 version: '3.8'
 
 services:
@@ -1602,7 +1680,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --token TOKEN_PLACEHOLDER
     networks:
       - cloudflare
     environment:
@@ -1622,7 +1700,7 @@ networks:
   cloudflare:
     driver: bridge
     internal: false
-EOF
+DOCKER_EOF
     
     # Create systemd service
     cat << EOF | sudo tee /etc/systemd/system/cloudflared.service > /dev/null
@@ -1671,6 +1749,10 @@ EOF
         print_success "Cloudflare Tunnel started"
     else
         print_error "Failed to start Cloudflare Tunnel"
+        return 1
+    fi
+    else
+        print_error "Invalid installation method"
         return 1
     fi
     
