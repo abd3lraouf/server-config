@@ -1533,9 +1533,6 @@ install_tailscale() {
                     print_error "Invalid tag name. Use only alphanumeric characters and dashes."
                 fi
             done
-            else
-                print_status "No tag name provided, continuing without tags"
-            fi
         fi
     fi
     
@@ -3047,6 +3044,7 @@ EOF
 }
 
 # Function 28: Complete Zero Trust setup
+setup_zero_trust_complete() {
     print_status "Starting complete Zero Trust security setup..."
     
     echo -e "\n${CYAN}═══════════════════════════════════════════════════════════${NC}"
