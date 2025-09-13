@@ -3460,6 +3460,322 @@ show_security_menu() {
     echo -e "\n${CYAN}════════════════════════════════════════════════════${NC}"
 }
 
+# ============================================================================
+# NEW UNIFIED UI FUNCTIONS
+# ============================================================================
+
+# Function to display simplified main menu
+show_simplified_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║       Ubuntu Zero Trust Security Setup v${SCRIPT_VERSION}       ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+
+    # Show configuration status
+    if [[ -f "${SCRIPT_DIR}/config" ]]; then
+        echo -e "\n${GREEN}✓ Configuration found${NC} (using saved settings)"
+    else
+        echo -e "\n${YELLOW}! No configuration found${NC} (will start wizard)"
+    fi
+
+    echo -e "\n${MAGENTA}What would you like to do?${NC}\n"
+    echo -e "  ${GREEN}1)${NC} 🚀 Quick Setup ${CYAN}(Recommended)${NC}"
+    echo -e "     → Complete Zero Trust security setup with wizard"
+    echo -e "  ${GREEN}2)${NC} ⚙️  Custom Setup"
+    echo -e "     → Choose specific components to install"
+    echo -e "  ${GREEN}3)${NC} 🔧 Maintenance Tools"
+    echo -e "     → Check status, generate reports, rollback"
+    echo -e "  ${GREEN}4)${NC} 📋 Save/Load Configuration"
+    echo -e "     → Manage setup configuration"
+    echo -e "  ${GREEN}5)${NC} ❌ Exit"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════════${NC}"
+}
+
+# Quick setup function - wizard + auto-execution
+quick_setup() {
+    print_status "Starting Quick Zero Trust Setup..."
+    echo -e "\n${YELLOW}This will:${NC}"
+    echo "  1. Configure your security settings"
+    echo "  2. Install all security components"
+    echo "  3. Harden your system"
+    echo "  4. Set up monitoring"
+    echo ""
+
+    # Check if config exists
+    if [[ -f "${SCRIPT_DIR}/config" ]]; then
+        echo -e "${GREEN}Using existing configuration.${NC}"
+        read -p "Would you like to review/modify settings? [y/N]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            configure_interactively
+        fi
+    else
+        echo -e "${YELLOW}No configuration found. Starting setup wizard...${NC}"
+        sleep 2
+        configure_interactively
+    fi
+
+    # Save configuration automatically
+    print_status "Saving configuration for future use..."
+    save_config_file
+
+    # Execute complete setup
+    echo -e "\n${CYAN}Starting Zero Trust installation...${NC}"
+    sleep 2
+    setup_zero_trust_complete
+
+    # Show completion summary
+    show_completion_summary
+
+    echo -e "\n${GREEN}✅ Setup completed successfully!${NC}"
+    exit 0
+}
+
+# Custom setup with consolidated menu
+show_custom_setup_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                    Custom Setup Menu                      ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "\n${MAGENTA}Select components to install:${NC}\n"
+    echo -e "  ${GREEN}1)${NC} 🖥️  Base System Setup"
+    echo -e "     → Zsh, Node.js, development tools"
+    echo -e "  ${GREEN}2)${NC} 🔒 Complete Security Hardening"
+    echo -e "     → All security components at once"
+    echo -e "  ${GREEN}3)${NC} 🌐 Network Security Only"
+    echo -e "     → Tailscale + Cloudflare Tunnel"
+    echo -e "  ${GREEN}4)${NC} 📊 Monitoring & Compliance Only"
+    echo -e "     → AIDE, Lynis, Logwatch, reporting"
+    echo -e "  ${GREEN}5)${NC} 🐳 Container Security"
+    echo -e "     → Docker/Podman + CrowdSec + Traefik"
+    echo -e "  ${GREEN}6)${NC} ↩️  Back to main menu"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════════${NC}"
+}
+
+# Maintenance menu for utilities
+show_maintenance_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                  Maintenance Tools                        ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "\n${MAGENTA}Select a maintenance task:${NC}\n"
+    echo -e "  ${GREEN}1)${NC} 📈 Check System Security Status"
+    echo -e "  ${GREEN}2)${NC} 🔍 Check AIDE Status"
+    echo -e "  ${GREEN}3)${NC} 📄 Generate Compliance Report"
+    echo -e "  ${GREEN}4)${NC} ✅ Validate Security Configuration"
+    echo -e "  ${GREEN}5)${NC} 🔄 Emergency Rollback"
+    echo -e "  ${GREEN}6)${NC} 💾 Backup Current Configuration"
+    echo -e "  ${GREEN}7)${NC} ↩️  Back to main menu"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════════${NC}"
+}
+
+# Configuration management menu
+show_config_menu() {
+    echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║              Configuration Management                     ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+
+    if [[ -f "${SCRIPT_DIR}/config" ]]; then
+        echo -e "\n${GREEN}✓ Configuration file exists${NC}"
+        echo -e "  Last modified: $(stat -c %y "${SCRIPT_DIR}/config" | cut -d' ' -f1,2)"
+    else
+        echo -e "\n${YELLOW}! No configuration file found${NC}"
+    fi
+
+    echo -e "\n${MAGENTA}Select an option:${NC}\n"
+    echo -e "  ${GREEN}1)${NC} 💾 Save current settings to config"
+    echo -e "  ${GREEN}2)${NC} 📂 Load configuration from file"
+    echo -e "  ${GREEN}3)${NC} ✏️  Edit configuration interactively"
+    echo -e "  ${GREEN}4)${NC} 👁️  View current configuration"
+    echo -e "  ${GREEN}5)${NC} 🗑️  Delete configuration file"
+    echo -e "  ${GREEN}6)${NC} ↩️  Back to main menu"
+    echo -e "\n${CYAN}════════════════════════════════════════════════════════${NC}"
+}
+
+# Completion summary
+show_completion_summary() {
+    echo -e "\n${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}                 Installation Summary                        ${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+
+    # Check what's installed
+    echo -e "\n${GREEN}Installed Components:${NC}"
+
+    # Check Tailscale
+    if command -v tailscale &> /dev/null; then
+        echo -e "  ✅ Tailscale VPN"
+    fi
+
+    # Check Cloudflare
+    if systemctl is-active cloudflared &>/dev/null || docker ps | grep -q cloudflared; then
+        echo -e "  ✅ Cloudflare Tunnel"
+    fi
+
+    # Check CrowdSec
+    if docker ps | grep -q crowdsec; then
+        echo -e "  ✅ CrowdSec IPS"
+    fi
+
+    # Check monitoring tools
+    if command -v lynis &> /dev/null; then
+        echo -e "  ✅ Security Monitoring Tools"
+    fi
+
+    echo -e "\n${YELLOW}Next Steps:${NC}"
+    echo -e "  1. Check Tailscale status: ${CYAN}tailscale status${NC}"
+    echo -e "  2. Monitor AIDE initialization: ${CYAN}sudo ./setup.sh${NC} → Maintenance → Check AIDE"
+    echo -e "  3. Review security report: ${CYAN}ls /etc/zero-trust/docs/${NC}"
+
+    echo -e "\n${GREEN}Your server is now secured with Zero Trust architecture!${NC}"
+}
+
+# Handle custom setup menu
+handle_custom_setup() {
+    while true; do
+        show_custom_setup_menu
+        read -p "Enter your choice [1-6]: " choice
+
+        case $choice in
+            1)
+                print_status "Installing base system components..."
+                run_all_base
+                ;;
+            2)
+                print_status "Starting complete security setup..."
+                if [[ -z "$ADMIN_EMAIL" ]]; then
+                    configure_interactively
+                fi
+                setup_zero_trust_complete
+                ;;
+            3)
+                print_status "Setting up network security..."
+                install_tailscale
+                setup_cloudflare_tunnel
+                ;;
+            4)
+                print_status "Installing monitoring and compliance tools..."
+                install_monitoring_tools
+                generate_compliance_report
+                ;;
+            5)
+                print_status "Setting up container security..."
+                # Check if Docker is installed, if not install it
+                if ! command -v docker &> /dev/null; then
+                    print_status "Installing Docker..."
+                    curl -fsSL https://get.docker.com | sh
+                    sudo usermod -aG docker $MAIN_USER
+                fi
+                install_crowdsec
+                configure_traefik_security
+                ;;
+            6)
+                return
+                ;;
+            *)
+                print_error "Invalid option. Please select 1-6"
+                ;;
+        esac
+
+        if [ "$choice" != "6" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
+    done
+}
+
+# Handle maintenance menu
+handle_maintenance_menu() {
+    while true; do
+        show_maintenance_menu
+        read -p "Enter your choice [1-7]: " choice
+
+        case $choice in
+            1)
+                validate_zero_trust_security
+                ;;
+            2)
+                check_aide_status
+                ;;
+            3)
+                generate_compliance_report
+                ;;
+            4)
+                validate_zero_trust_security
+                ;;
+            5)
+                emergency_rollback
+                ;;
+            6)
+                save_config_file
+                ;;
+            7)
+                return
+                ;;
+            *)
+                print_error "Invalid option. Please select 1-7"
+                ;;
+        esac
+
+        if [ "$choice" != "7" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
+    done
+}
+
+# Handle configuration menu
+handle_config_menu() {
+    while true; do
+        show_config_menu
+        read -p "Enter your choice [1-6]: " choice
+
+        case $choice in
+            1)
+                save_config_file
+                ;;
+            2)
+                load_config_file
+                print_success "Configuration loaded"
+                ;;
+            3)
+                configure_interactively
+                ;;
+            4)
+                if [[ -f "${SCRIPT_DIR}/config" ]]; then
+                    echo -e "\n${CYAN}Current Configuration:${NC}"
+                    grep -E "^[A-Z_]+=" "${SCRIPT_DIR}/config" | grep -v "^#"
+                else
+                    print_error "No configuration file found"
+                fi
+                ;;
+            5)
+                if [[ -f "${SCRIPT_DIR}/config" ]]; then
+                    read -p "Are you sure you want to delete the configuration? [y/N]: " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        rm -f "${SCRIPT_DIR}/config"
+                        print_success "Configuration deleted"
+                    fi
+                else
+                    print_error "No configuration file to delete"
+                fi
+                ;;
+            6)
+                return
+                ;;
+            *)
+                print_error "Invalid option. Please select 1-6"
+                ;;
+        esac
+
+        if [ "$choice" != "6" ]; then
+            echo -e "\n${YELLOW}Press Enter to continue...${NC}"
+            read
+        fi
+    done
+}
+
+# ============================================================================
+# ORIGINAL MENU FUNCTIONS (kept for compatibility)
+# ============================================================================
+
 # Function to display main menu
 show_menu() {
     echo -e "\n${CYAN}╔══════════════════════════════════════════════════╗${NC}"
@@ -3829,62 +4145,35 @@ main() {
         exit $?
     fi
     
-    # Interactive mode - show configuration wizard first
-    if [[ "$INTERACTIVE_MODE" == true ]]; then
-        echo -e "${YELLOW}Welcome to the Zero Trust Security Setup!${NC}\n"
-        echo "This script will help you secure your Ubuntu server with:"
-        echo "• Zero exposed ports (all traffic via secure tunnels)"
-        echo "• Tailscale for secure SSH access"
-        echo "• Cloudflare Tunnel for web services"
-        echo "• CrowdSec for threat protection"
-        echo "• Comprehensive monitoring and compliance"
-        echo
-        
-        read -p "Would you like to start the configuration wizard? [Y/n]: " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            configure_interactively
-            
-            # Ask if user wants to save configuration
-            prompt_save_config
-            
-            # Ask if user wants to run setup now
-            echo -e "\n${CYAN}Configuration complete!${NC}"
-            read -p "Would you like to run the Zero Trust setup now? [Y/n]: " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                setup_zero_trust_complete
-                exit $?
-            fi
-        fi
-    fi
-    
-    # Show main menu for manual selection
+    # Use new simplified menu system
     while true; do
-        show_menu
-        read -p "Enter your choice [1-4]: " choice
-        
+        show_simplified_menu
+        read -p "Enter your choice [1-5]: " choice
+
         case $choice in
             1)
-                handle_base_menu
+                quick_setup
                 ;;
             2)
-                handle_security_menu
+                handle_custom_setup
                 ;;
             3)
-                run_all
+                handle_maintenance_menu
                 ;;
             4)
+                handle_config_menu
+                ;;
+            5)
                 print_status "Exiting..."
                 print_success "Thank you for using Zero Trust Security Setup!"
                 exit 0
                 ;;
             *)
-                print_error "Invalid option. Please select 1-4"
+                print_error "Invalid option. Please select 1-5"
                 ;;
         esac
-        
-        if [ "$choice" != "4" ]; then
+
+        if [ "$choice" != "5" ]; then
             echo -e "\n${YELLOW}Press Enter to continue...${NC}"
             read
         fi
