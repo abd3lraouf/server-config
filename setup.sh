@@ -35,16 +35,16 @@ DRY_RUN=false
 VERBOSE=false
 SKIP_VALIDATION=false
 
-# Service configuration variables
-CLOUDFLARE_EMAIL=""
-CLOUDFLARE_API_KEY=""
-CLOUDFLARE_TUNNEL_TOKEN=""
-CLOUDFLARE_TUNNEL_NAME=""
-TAILSCALE_AUTH_KEY=""
-DOMAIN_NAME=""
-ADMIN_EMAIL=""
-ENABLE_ROOTLESS_DOCKER=false
-ENABLE_PODMAN=false
+# Service configuration variables (declare only if not already set)
+CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-}"
+CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
+CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
+CLOUDFLARE_TUNNEL_NAME="${CLOUDFLARE_TUNNEL_NAME:-}"
+TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
+DOMAIN_NAME="${DOMAIN_NAME:-}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ENABLE_ROOTLESS_DOCKER="${ENABLE_ROOTLESS_DOCKER:-false}"
+ENABLE_PODMAN="${ENABLE_PODMAN:-false}"
 
 # Enhanced logging functions with file output
 log_message() {
@@ -52,8 +52,10 @@ log_message() {
     local message="$2"
     local timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
     
-    # Write to log file
-    echo "[$timestamp] [$level] $message" >> "$LOG_FILE" 2>/dev/null || true
+    # Write to log file only if we have write permissions
+    if [[ -w "$LOG_FILE" ]] || [[ "$EUID" -eq 0 ]]; then
+        echo "[$timestamp] [$level] $message" >> "$LOG_FILE" 2>/dev/null || true
+    fi
     
     # Display to console based on level
     case "$level" in
@@ -175,6 +177,138 @@ ensure_docker_network() {
         print_status "Docker network '$network_name' already exists"
         return 0
     fi
+}
+
+# ============================================================================
+# Configuration File Management
+# ============================================================================
+
+# Load configuration from file
+load_config_file() {
+    local config_file="${SCRIPT_DIR}/config"
+    
+    if [[ -f "$config_file" ]]; then
+        print_status "Loading configuration from $config_file..."
+        
+        # Source the config file in a subshell to validate it first
+        if ( source "$config_file" ) 2>/dev/null; then
+            source "$config_file"
+            print_success "Configuration loaded successfully"
+            return 0
+        else
+            print_warning "Configuration file exists but contains errors"
+            return 1
+        fi
+    else
+        print_debug "No configuration file found at $config_file"
+        return 1
+    fi
+}
+
+# Save current configuration to file
+save_config_file() {
+    local config_file="${SCRIPT_DIR}/config"
+    
+    print_status "Saving current configuration to $config_file..."
+    
+    # Create config header
+    cat > "$config_file" << EOF
+#!/bin/bash
+# Zero Trust Setup Configuration File
+# Generated on: $(date)
+EOF
+    cat >> "$config_file" << 'EOF'
+# This file contains your saved configuration values
+# Edit carefully - this file is sourced by setup.sh
+
+# ============================================================================
+# Core Configuration
+# ============================================================================
+
+EOF
+    
+    # Save current values
+    {
+        echo "MAIN_USER=\"${MAIN_USER}\""
+        echo "ADMIN_EMAIL=\"${ADMIN_EMAIL}\""
+        echo "DOMAIN_NAME=\"${DOMAIN_NAME}\""
+        echo ""
+        echo "# Cloudflare Configuration"
+        echo "CLOUDFLARE_TUNNEL_TOKEN=\"${CLOUDFLARE_TUNNEL_TOKEN}\""
+        echo "CLOUDFLARE_TUNNEL_NAME=\"${CLOUDFLARE_TUNNEL_NAME}\""
+        echo "USE_NATIVE_CLOUDFLARED=\"${USE_NATIVE_CLOUDFLARED:-true}\""
+        echo ""
+        echo "# Tailscale Configuration"
+        echo "TAILSCALE_AUTH_KEY=\"${TAILSCALE_AUTH_KEY}\""
+        echo "TAILSCALE_ADVERTISE_ROUTES=\"${TAILSCALE_ADVERTISE_ROUTES:-}\""
+        echo "TAILSCALE_TAGS=\"${TAILSCALE_TAGS:-}\""
+        echo "TAILSCALE_ACCEPT_ROUTES=\"${TAILSCALE_ACCEPT_ROUTES:-false}\""
+        echo "TAILSCALE_SSH=\"${TAILSCALE_SSH:-true}\""
+        echo ""
+        echo "# Container Runtime Configuration"
+        echo "ENABLE_ROOTLESS_DOCKER=\"${ENABLE_ROOTLESS_DOCKER}\""
+        echo "ENABLE_PODMAN=\"${ENABLE_PODMAN}\""
+        echo ""
+        echo "# Security Configuration"
+        echo "ENABLE_AUTO_UPDATES=\"${ENABLE_AUTO_UPDATES:-true}\""
+        echo "ENABLE_CIS_HARDENING=\"${ENABLE_CIS_HARDENING:-true}\""
+        echo "ENABLE_PAM_HARDENING=\"${ENABLE_PAM_HARDENING:-true}\""
+        echo "ENABLE_KERNEL_HARDENING=\"${ENABLE_KERNEL_HARDENING:-true}\""
+        echo "ENABLE_APPARMOR=\"${ENABLE_APPARMOR:-true}\""
+        echo "ENABLE_AUDIT=\"${ENABLE_AUDIT:-true}\""
+        echo ""
+        echo "# Service Ports"
+        echo "CROWDSEC_PORT=\"${CROWDSEC_PORT:-8090}\""
+        echo ""
+        echo "# Runtime Options"
+        echo "INTERACTIVE_MODE=\"${INTERACTIVE_MODE}\""
+        echo "DRY_RUN=\"${DRY_RUN}\""
+        echo "VERBOSE=\"${VERBOSE}\""
+        echo "SKIP_VALIDATION=\"${SKIP_VALIDATION}\""
+    } >> "$config_file"
+    
+    # Set appropriate permissions
+    chmod 600 "$config_file"
+    
+    print_success "Configuration saved to $config_file"
+    print_status "Note: This file contains sensitive data and is excluded from git"
+    return 0
+}
+
+# Prompt to save configuration
+prompt_save_config() {
+    if [[ "$INTERACTIVE_MODE" == true ]]; then
+        echo
+        read -p "Would you like to save this configuration for future use? [y/N]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            save_config_file
+        fi
+    fi
+}
+
+# Initialize configuration with priority:
+# 1. Command line arguments (highest priority)
+# 2. Environment variables
+# 3. Config file
+# 4. Interactive prompts (if enabled)
+initialize_configuration() {
+    # First, try to load from config file
+    load_config_file || true
+    
+    # Then override with environment variables if set (check both old and new names)
+    [[ -n "${ADMIN_EMAIL:-}" ]] && ADMIN_EMAIL="${ADMIN_EMAIL}"
+    [[ -n "${EMAIL:-}" ]] && ADMIN_EMAIL="${EMAIL}"
+    [[ -n "${DOMAIN_NAME:-}" ]] && DOMAIN_NAME="${DOMAIN_NAME}"
+    [[ -n "${DOMAIN:-}" ]] && DOMAIN_NAME="${DOMAIN}"
+    [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]] && CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN}"
+    [[ -n "${CLOUDFLARE_TOKEN:-}" ]] && CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TOKEN}"
+    [[ -n "${TAILSCALE_AUTH_KEY:-}" ]] && TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY}"
+    [[ -n "${TAILSCALE_KEY:-}" ]] && TAILSCALE_AUTH_KEY="${TAILSCALE_KEY}"
+    
+    # Command line arguments will override later in parse_arguments()
+    
+    print_debug "Configuration initialized"
 }
 
 # ============================================================================
@@ -480,8 +614,15 @@ configure_interactively() {
     
     # Admin email
     while true; do
-        read -p "Enter admin email for notifications: " ADMIN_EMAIL
-        if validate_email "$ADMIN_EMAIL"; then
+        local prompt="Enter admin email for notifications"
+        [[ -n "$ADMIN_EMAIL" ]] && prompt="$prompt [${ADMIN_EMAIL}]"
+        prompt="$prompt: "
+        
+        read -p "$prompt" input_email
+        [[ -z "$input_email" && -n "$ADMIN_EMAIL" ]] && input_email="$ADMIN_EMAIL"
+        
+        if validate_email "$input_email"; then
+            ADMIN_EMAIL="$input_email"
             break
         else
             print_error "Invalid email format. Please enter a valid email address."
@@ -490,11 +631,18 @@ configure_interactively() {
     
     # Domain configuration
     while true; do
-        read -p "Enter your domain name (e.g., example.com): " DOMAIN_NAME
-        if [ -z "$DOMAIN_NAME" ]; then
+        local prompt="Enter your domain name (e.g., example.com)"
+        [[ -n "$DOMAIN_NAME" ]] && prompt="$prompt [${DOMAIN_NAME}]"
+        prompt="$prompt: "
+        
+        read -p "$prompt" input_domain
+        [[ -z "$input_domain" && -n "$DOMAIN_NAME" ]] && input_domain="$DOMAIN_NAME"
+        
+        if [ -z "$input_domain" ]; then
             print_warning "Domain name is optional. Press Enter to skip."
             break
-        elif validate_domain "$DOMAIN_NAME"; then
+        elif validate_domain "$input_domain"; then
+            DOMAIN_NAME="$input_domain"
             break
         else
             print_error "Invalid domain format. Use format: example.com or subdomain.example.com"
@@ -3440,6 +3588,9 @@ parse_arguments() {
                 SKIP_VALIDATION=true
                 shift
                 ;;
+            --save-config)
+                # Handled in main() before sudo check
+                ;;
             --email)
                 ADMIN_EMAIL="$2"
                 shift 2
@@ -3494,6 +3645,7 @@ OPTIONS:
     --dry-run                  Test mode without making changes
     --verbose                  Enable verbose logging
     --skip-validation          Skip system validation checks
+    --save-config              Save current configuration to file
     --email EMAIL              Admin email for notifications
     --domain DOMAIN            Domain name for services
     --cloudflare-token TOKEN   Cloudflare tunnel token
@@ -3502,9 +3654,22 @@ OPTIONS:
     --podman                   Install Podman
     --quick-setup              Run Zero Trust setup with provided parameters
 
+CONFIGURATION:
+    Configuration is loaded from (in priority order):
+    1. Command line arguments (highest priority)
+    2. Environment variables (EMAIL, DOMAIN, CLOUDFLARE_TOKEN, TAILSCALE_KEY)
+    3. Config file (./config)
+    4. Interactive prompts (if enabled)
+    
+    To save your configuration: $0 --save-config
+    To use saved configuration: Simply run the script, it will auto-load ./config
+
 EXAMPLES:
     # Interactive setup
     sudo $0
+
+    # Save configuration for future use
+    sudo $0 --save-config
 
     # Non-interactive with parameters
     sudo $0 --non-interactive --email admin@example.com --domain example.com \\
@@ -3522,7 +3687,32 @@ EOF
 
 # Main script logic
 main() {
-    # Parse command-line arguments first (before sudo check for help/version)
+    # Check for help/version/save-config first (don't need sudo)
+    for arg in "$@"; do
+        case "$arg" in
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            --version|-v)
+                echo "Zero Trust Security Setup Script v${SCRIPT_VERSION}"
+                exit 0
+                ;;
+            --save-config)
+                # Load existing config first (ignore errors if no config exists)
+                initialize_configuration || true
+                # The initialize_configuration already sets variables from env, no need to duplicate
+                # Save configuration
+                save_config_file
+                exit 0
+                ;;
+        esac
+    done
+    
+    # Initialize configuration (loads from file if exists)
+    initialize_configuration
+    
+    # Parse command-line arguments (overrides config file values)
     parse_arguments "$@"
     
     # Initialize logging only after parsing args (may not need sudo for help)
@@ -3530,7 +3720,7 @@ main() {
         initialize_logging
     fi
     
-    # Check if running with sudo (but allow help and version without sudo)
+    # Check if running with sudo
     if [ "$EUID" -ne 0 ]; then 
         print_error "This script must be run with sudo"
         print_status "Usage: sudo $0 [options]"
@@ -3586,6 +3776,9 @@ main() {
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             configure_interactively
+            
+            # Ask if user wants to save configuration
+            prompt_save_config
             
             # Ask if user wants to run setup now
             echo -e "\n${CYAN}Configuration complete!${NC}"

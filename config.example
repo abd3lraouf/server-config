@@ -1,0 +1,133 @@
+#!/bin/bash
+# Zero Trust Setup Configuration File
+# Copy this file to 'config' and modify with your values
+# This file will be automatically loaded when running setup.sh
+
+# ============================================================================
+# Core Configuration
+# ============================================================================
+
+# Main non-root user (leave empty to auto-detect)
+MAIN_USER=""
+
+# Admin email for notifications and certificates
+ADMIN_EMAIL=""
+
+# Primary domain name for services
+DOMAIN_NAME=""
+
+# ============================================================================
+# Cloudflare Configuration
+# ============================================================================
+
+# Cloudflare Tunnel Token (for existing tunnel)
+CLOUDFLARE_TUNNEL_TOKEN=""
+
+# Cloudflare Tunnel Name (for creating new tunnel)
+CLOUDFLARE_TUNNEL_NAME=""
+
+# Use native cloudflared service instead of Docker (true/false)
+USE_NATIVE_CLOUDFLARED="true"
+
+# ============================================================================
+# Tailscale Configuration
+# ============================================================================
+
+# Tailscale authentication key
+TAILSCALE_AUTH_KEY=""
+
+# Tailscale advertise routes (comma-separated, e.g., "10.0.0.0/24,192.168.1.0/24")
+TAILSCALE_ADVERTISE_ROUTES=""
+
+# Tailscale tags (comma-separated, e.g., "tag:server,tag:prod")
+# Leave empty to skip tags
+TAILSCALE_TAGS=""
+
+# Accept Tailscale routes (true/false)
+TAILSCALE_ACCEPT_ROUTES="false"
+
+# Enable Tailscale SSH (true/false)
+TAILSCALE_SSH="true"
+
+# ============================================================================
+# Container Runtime Configuration
+# ============================================================================
+
+# Enable rootless Docker installation (true/false)
+ENABLE_ROOTLESS_DOCKER="false"
+
+# Enable Podman installation (true/false)
+ENABLE_PODMAN="false"
+
+# ============================================================================
+# Security Configuration
+# ============================================================================
+
+# Enable automatic security updates (true/false)
+ENABLE_AUTO_UPDATES="true"
+
+# Enable CIS benchmarks hardening (true/false)
+ENABLE_CIS_HARDENING="true"
+
+# Enable PAM configuration hardening (true/false)
+ENABLE_PAM_HARDENING="true"
+
+# Enable kernel hardening (true/false)
+ENABLE_KERNEL_HARDENING="true"
+
+# Enable AppArmor profiles (true/false)
+ENABLE_APPARMOR="true"
+
+# Enable audit system (true/false)
+ENABLE_AUDIT="true"
+
+# ============================================================================
+# Service Ports
+# ============================================================================
+
+# CrowdSec API port (default: 8090)
+CROWDSEC_PORT="8090"
+
+# ============================================================================
+# Backup Configuration
+# ============================================================================
+
+# Backup directory path
+BACKUP_DIR="$HOME/.config-backup-$(date +%Y%m%d-%H%M%S)"
+
+# ============================================================================
+# Runtime Options
+# ============================================================================
+
+# Interactive mode - prompt for missing values (true/false)
+INTERACTIVE_MODE="true"
+
+# Dry run mode - show what would be done without making changes (true/false)
+DRY_RUN="false"
+
+# Verbose output (true/false)
+VERBOSE="false"
+
+# Skip validation checks (true/false)
+SKIP_VALIDATION="false"
+
+# ============================================================================
+# Advanced Options
+# ============================================================================
+
+# Zero Trust directory path
+ZERO_TRUST_DIR="/etc/zero-trust"
+
+# Script version (do not modify)
+SCRIPT_VERSION="2.0.0"
+
+# Log file path
+LOG_FILE="/var/log/zero-trust-setup.log"
+
+# ============================================================================
+# Notes:
+# - Environment variables override config file values
+# - Command line arguments override both environment and config values
+# - Interactive prompts will show current values from config
+# - Run './setup.sh --save-config' to save current configuration
+# ============================================================================

@@ -25,3 +25,7 @@ __pycache__/
 
 # Downloaded files (will be fetched during setup)
 aptsources-cleanup.pyz
+
+# Configuration files (contains sensitive data)
+config
+!config.example
