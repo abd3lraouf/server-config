@@ -231,8 +231,8 @@ configure_firewall_for_coolify() {
         "80/tcp"    # HTTP
         "443/tcp"   # HTTPS
         "8000/tcp"  # Coolify UI
-        "6001/tcp"  # Coolify Realtime (Soketi)
-        "6002/tcp"  # Coolify Horizon
+        "6001/tcp"  # Coolify Realtime (Soketi/WebSocket)
+        "6002/tcp"  # Coolify Terminal (WebSocket)
     )
 
     for port in "${ports[@]}"; do
@@ -243,6 +243,27 @@ configure_firewall_for_coolify() {
     # Allow Docker networks
     sudo ufw allow from 172.16.0.0/12 comment "Docker networks"
     sudo ufw allow from 10.0.0.0/8 comment "Docker swarm"
+
+    # Allow WebSocket ports from Tailscale network if Tailscale is installed
+    if command -v tailscale &>/dev/null && tailscale status &>/dev/null 2>&1; then
+        print_status "Detecting Tailscale network configuration..."
+
+        # Get Tailscale IP dynamically
+        local tailscale_ip=$(ip -4 addr show tailscale0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "")
+
+        if [ -n "$tailscale_ip" ]; then
+            # Extract network from IP (Tailscale uses 100.64.0.0/10)
+            local tailscale_network="100.64.0.0/10"
+
+            print_status "Allowing WebSocket ports from Tailscale network ($tailscale_network)..."
+            sudo ufw allow from $tailscale_network to any port 6001 proto tcp comment "Coolify WebSocket via Tailscale"
+            sudo ufw allow from $tailscale_network to any port 6002 proto tcp comment "Coolify Terminal via Tailscale"
+
+            print_success "Tailscale access configured for IP: $tailscale_ip"
+        else
+            print_warning "Tailscale interface found but no IP detected"
+        fi
+    fi
 
     # Reload firewall
     sudo ufw reload
@@ -450,6 +471,283 @@ EOF
 }
 
 # ============================================================================
+# WebSocket Configuration for Coolify
+# ============================================================================
+
+# Configure WebSocket support for Coolify
+configure_coolify_websockets() {
+    print_status "Configuring WebSocket support for Coolify..."
+
+    # Create persistent WebSocket configuration directory
+    sudo mkdir -p /data/coolify/nginx-config
+
+    # Create WebSocket configuration that appends to http.conf
+    print_status "Creating persistent nginx WebSocket configuration..."
+
+    # Check if WebSocket config already exists in http.conf
+    if docker exec coolify grep -q "/terminal/ws" /etc/nginx/site-opts.d/http.conf 2>/dev/null; then
+        print_status "WebSocket configuration already present"
+    else
+        # Append WebSocket configuration to http.conf
+        docker exec coolify sh -c 'cat >> /etc/nginx/site-opts.d/http.conf << "EOF"
+
+# WebSocket proxy configuration for Coolify terminal
+location /terminal/ws {
+    proxy_pass http://coolify-realtime:6002;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 3600;
+    proxy_connect_timeout 60;
+    proxy_send_timeout 60;
+}
+
+location /app {
+    proxy_pass http://coolify-realtime:6001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 3600;
+    proxy_connect_timeout 60;
+    proxy_send_timeout 60;
+}
+EOF'
+
+        # Reload nginx in Coolify container
+        docker exec coolify nginx -s reload 2>/dev/null || true
+        print_success "Nginx WebSocket configuration applied"
+    fi
+
+    # Create persistent configuration script
+    create_coolify_websocket_persistence
+
+    # Configure PUSHER environment variables for WebSocket
+    local env_file="/data/coolify/source/.env"
+    if [ -f "$env_file" ]; then
+        print_status "Checking PUSHER configuration..."
+
+        # Get current domain if set
+        local coolify_domain=$(grep "^APP_URL=" "$env_file" | cut -d'=' -f2 | sed 's|https://||' | sed 's|http://||' | tr -d '"')
+
+        if [ -n "$coolify_domain" ]; then
+            print_status "Configuring PUSHER for domain: $coolify_domain"
+
+            # Detect access method dynamically
+            local pusher_host="$coolify_domain"
+            local pusher_port="443"
+            local pusher_scheme="https"
+
+            # Check if accessing via Tailscale (local IP)
+            if command -v tailscale &>/dev/null && tailscale status &>/dev/null 2>&1; then
+                local tailscale_ip=$(ip -4 addr show tailscale0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "")
+                if [ -n "$tailscale_ip" ] && [[ "$coolify_domain" == *"$tailscale_ip"* ]]; then
+                    print_status "Detected Tailscale access - configuring for local WebSocket"
+                    pusher_host="$tailscale_ip"
+                    pusher_port="6001"
+                    pusher_scheme="http"
+                fi
+            fi
+
+            # Update PUSHER configuration
+            sudo sed -i "s|^PUSHER_HOST=.*|PUSHER_HOST=$pusher_host|" "$env_file"
+            sudo sed -i "s|^PUSHER_PORT=.*|PUSHER_PORT=$pusher_port|" "$env_file"
+            sudo sed -i "s|^PUSHER_SCHEME=.*|PUSHER_SCHEME=$pusher_scheme|" "$env_file"
+            sudo sed -i "s|^VITE_PUSHER_HOST=.*|VITE_PUSHER_HOST=$pusher_host|" "$env_file"
+            sudo sed -i "s|^VITE_PUSHER_PORT=.*|VITE_PUSHER_PORT=$pusher_port|" "$env_file"
+            sudo sed -i "s|^VITE_PUSHER_SCHEME=.*|VITE_PUSHER_SCHEME=$pusher_scheme|" "$env_file"
+
+            # Add VITE_PUSHER_FORCE_TLS based on scheme
+            if [ "$pusher_scheme" = "https" ]; then
+                if ! grep -q "^VITE_PUSHER_FORCE_TLS=" "$env_file"; then
+                    echo "VITE_PUSHER_FORCE_TLS=true" | sudo tee -a "$env_file" > /dev/null
+                else
+                    sudo sed -i "s|^VITE_PUSHER_FORCE_TLS=.*|VITE_PUSHER_FORCE_TLS=true|" "$env_file"
+                fi
+            else
+                sudo sed -i "s|^VITE_PUSHER_FORCE_TLS=.*|VITE_PUSHER_FORCE_TLS=false|" "$env_file"
+            fi
+
+            # Clear Laravel cache
+            docker exec coolify php artisan config:clear 2>/dev/null || true
+            docker exec coolify php artisan cache:clear 2>/dev/null || true
+
+            print_success "PUSHER configured for $pusher_scheme WebSocket on $pusher_host:$pusher_port"
+        fi
+    fi
+
+    # Configure Traefik for WebSocket if using custom domain
+    if [ -d "/data/coolify/proxy/dynamic" ]; then
+        configure_traefik_websockets
+    fi
+
+    print_success "WebSocket support configured for Coolify"
+    return 0
+}
+
+# Create persistent WebSocket configuration
+create_coolify_websocket_persistence() {
+    print_status "Setting up persistent WebSocket configuration..."
+
+    # Create WebSocket configuration script
+    cat << 'EOFSCRIPT' | sudo tee /data/coolify/nginx-config/apply-websocket.sh > /dev/null
+#!/bin/bash
+# Apply WebSocket configuration to Coolify nginx
+
+# Wait for container to be ready
+sleep 10
+
+# Check if WebSocket config already exists
+if docker exec coolify grep -q "/terminal/ws" /etc/nginx/site-opts.d/http.conf 2>/dev/null; then
+    echo "WebSocket configuration already present"
+    exit 0
+fi
+
+# Append WebSocket configuration to http.conf
+docker exec coolify sh -c 'cat >> /etc/nginx/site-opts.d/http.conf << "EOF"
+
+# WebSocket proxy configuration for Coolify terminal
+location /terminal/ws {
+    proxy_pass http://coolify-realtime:6002;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 3600;
+    proxy_connect_timeout 60;
+    proxy_send_timeout 60;
+}
+
+location /app {
+    proxy_pass http://coolify-realtime:6001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 3600;
+    proxy_connect_timeout 60;
+    proxy_send_timeout 60;
+}
+EOF'
+
+# Reload nginx
+docker exec coolify nginx -s reload 2>/dev/null
+
+echo "WebSocket configuration applied to Coolify"
+EOFSCRIPT
+
+    sudo chmod +x /data/coolify/nginx-config/apply-websocket.sh
+
+    # Create systemd service for persistence
+    cat << 'EOFSERVICE' | sudo tee /etc/systemd/system/coolify-websocket.service > /dev/null
+[Unit]
+Description=Apply WebSocket configuration to Coolify
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 10
+ExecStart=/data/coolify/nginx-config/apply-websocket.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOFSERVICE
+
+    # Enable and start the service
+    sudo systemctl daemon-reload
+    sudo systemctl enable coolify-websocket.service 2>/dev/null
+    sudo systemctl start coolify-websocket.service 2>/dev/null
+
+    print_success "Persistent WebSocket configuration created"
+}
+
+# Configure Traefik for WebSocket support
+configure_traefik_websockets() {
+    print_status "Configuring Traefik for WebSocket support..."
+
+    local traefik_config="/data/coolify/proxy/dynamic/coolify-websocket.yaml"
+
+    # Get domain from .env if available
+    local coolify_domain=""
+    if [ -f "/data/coolify/source/.env" ]; then
+        coolify_domain=$(grep "^APP_URL=" "/data/coolify/source/.env" | cut -d'=' -f2 | sed 's|https://||' | sed 's|http://||' | tr -d '"')
+    fi
+
+    if [ -n "$coolify_domain" ]; then
+        cat << EOF | sudo tee "$traefik_config" > /dev/null
+http:
+  routers:
+    coolify-terminal-ws:
+      rule: "Host(\`$coolify_domain\`) && PathPrefix(\`/terminal/ws\`)"
+      service: coolify-terminal-service
+      middlewares:
+        - websocket-headers
+      entryPoints:
+        - https
+      tls:
+        certResolver: letsencrypt
+
+    coolify-app-ws:
+      rule: "Host(\`$coolify_domain\`) && PathPrefix(\`/app\`)"
+      service: coolify-pusher-service
+      middlewares:
+        - websocket-headers
+      entryPoints:
+        - https
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    coolify-terminal-service:
+      loadBalancer:
+        servers:
+          - url: "http://coolify-realtime:6002"
+
+    coolify-pusher-service:
+      loadBalancer:
+        servers:
+          - url: "http://coolify-realtime:6001"
+
+  middlewares:
+    websocket-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Forwarded-Proto: "https"
+EOF
+
+        # Restart Traefik to apply changes
+        docker restart coolify-proxy 2>/dev/null || true
+
+        print_success "Traefik WebSocket configuration created for $coolify_domain"
+    fi
+
+    return 0
+}
+
+# ============================================================================
 # Backup Configuration
 # ============================================================================
 
@@ -573,6 +871,7 @@ setup_coolify_complete() {
     configure_ssh_for_coolify
     configure_firewall_for_coolify
     configure_docker_for_coolify
+    configure_coolify_websockets
     harden_coolify_security
     configure_coolify_backups
 
@@ -607,6 +906,7 @@ OPTIONS:
     --configure-ssh         Configure SSH for Coolify
     --configure-firewall    Configure firewall for Coolify
     --configure-docker      Configure Docker for Coolify
+    --configure-websockets  Configure WebSocket support
     --harden                Harden Coolify security
     --configure-backups     Configure automated backups
     --status                Show Coolify status
@@ -647,6 +947,7 @@ confirm_action() {
 export -f check_coolify_installed
 export -f configure_ssh_for_coolify setup_coolify_ssh_keys validate_coolify_ssh
 export -f configure_firewall_for_coolify configure_docker_for_coolify
+export -f configure_coolify_websockets configure_traefik_websockets create_coolify_websocket_persistence
 export -f install_coolify harden_coolify_security
 export -f configure_fail2ban_for_coolify configure_coolify_backups
 export -f show_coolify_status setup_coolify_complete
@@ -673,6 +974,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ;;
         --configure-docker)
             configure_docker_for_coolify
+            ;;
+        --configure-websockets)
+            configure_coolify_websockets
             ;;
         --harden)
             harden_coolify_security

@@ -175,6 +175,78 @@ MIT License - See [LICENSE](./LICENSE) file for details
 - **Issues**: [GitHub Issues](https://github.com/abd3lraouf/server-config/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/abd3lraouf/server-config/discussions)
 
+## 🌐 Coolify WebSocket Terminal Configuration
+
+If you're using **Coolify** with **Cloudflare Tunnel** and/or **Tailscale VPN**, the terminal feature requires proper WebSocket configuration.
+
+📚 **[View Complete WebSocket Documentation](./docs/COOLIFY_WEBSOCKET.md)** for detailed architecture and troubleshooting.
+
+### Understanding the WebSocket Flow
+
+The Coolify terminal uses WebSocket connections that flow through multiple layers:
+
+```
+Browser → Cloudflare/Tailscale → Traefik → Nginx (Coolify) → Realtime Container → SSH → Target
+```
+
+**Component Relationships:**
+- **Cloudflare Tunnel**: Provides secure HTTPS access from internet
+- **Tailscale VPN**: Provides secure direct access from private network
+- **Traefik Proxy**: Routes incoming requests to correct container
+- **Nginx (in Coolify)**: Proxies WebSocket to realtime container
+- **Realtime Container**: Handles WebSocket connections on ports 6001-6002
+- **SSH Connection**: Establishes terminal session to target server/container
+
+### Cloudflare Tunnel Setup
+
+1. **Configure Public Hostnames** in Cloudflare Zero Trust Dashboard:
+   - Navigate to Networks → Tunnels → Your tunnel → Configure
+   - Add WebSocket paths **BEFORE** the wildcard path:
+
+   | Priority | Hostname | Path | Service | Type |
+   |----------|----------|------|---------|------|
+   | 1 | coolify.yourdomain.com | `/terminal/ws` | `http://localhost:8000` | HTTP |
+   | 2 | coolify.yourdomain.com | `/app` | `http://localhost:8000` | HTTP |
+   | 3 | coolify.yourdomain.com | `*` | `http://localhost:8000` | HTTP |
+
+   **⚠️ Important**: The order matters! Specific paths must come before the wildcard (`*`).
+
+2. **No Additional WebSocket Settings Required**:
+   - Cloudflare automatically handles WebSocket upgrades
+   - Just save the configuration
+
+### Server-Side Configuration
+
+The setup script **automatically and dynamically** configures:
+
+#### Dynamic Network Detection
+- ✅ **Tailscale IP Detection**: Automatically detects your Tailscale IP from `tailscale0` interface
+- ✅ **Smart PUSHER Configuration**:
+  - For domain access: Uses HTTPS/WSS on port 443
+  - For Tailscale access: Uses HTTP/WS on ports 6001-6002
+- ✅ **Dynamic Firewall Rules**: Allows WebSocket ports from detected Tailscale network
+
+#### Persistent Configuration
+- ✅ **Nginx WebSocket Proxy**: Routes `/terminal/ws` and `/app` to `coolify-realtime` container
+- ✅ **Traefik Routing**: Configures WebSocket headers and proper entrypoints
+- ✅ **Systemd Service**: Ensures WebSocket config persists across container restarts
+- ✅ **Auto-recovery**: Reapplies configuration if Coolify container is recreated
+
+### Troubleshooting Terminal Issues
+
+If you see "Terminal websocket connection lost":
+
+1. **Verify Cloudflare paths are ordered correctly** (WebSocket paths before wildcard)
+2. **Clear browser cache** or try incognito mode
+3. **Check services are running**:
+   ```bash
+   sudo docker ps | grep coolify
+   ```
+4. **Reapply WebSocket configuration**:
+   ```bash
+   sudo systemctl restart coolify-websocket
+   ```
+
 ## ⚠️ Important Notes
 
 1. **Always review scripts** before running with sudo privileges
