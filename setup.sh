@@ -2,15 +2,58 @@
 # Ubuntu Server Configuration Orchestrator
 # Main entry point for modular server setup system
 # Version: 2.0.0
+# Repository: https://github.com/abd3lraouf/server-config
 
 set -euo pipefail
 
+# ============================================================================
+# One-Liner Installation Handler
+# ============================================================================
+# Skip if we're already running from the curl installation
+if [ "${1:-}" != "--from-curl" ]; then
+    # Detect if script is being run via curl/wget (one-liner installation)
+    if [ ! -t 0 ] || [ "${1:-}" = "--curl-install" ]; then
+    echo "🚀 Ubuntu Server Setup - One-Liner Installation"
+    echo "================================================"
+
+    # Create temporary directory for installation
+    INSTALL_DIR="/tmp/server-config-$$"
+    echo "📦 Setting up temporary installation directory..."
+
+    # Clean up any existing installation
+    rm -rf "$INSTALL_DIR" 2>/dev/null || true
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+
+    # Clone the repository
+    echo "📥 Downloading server configuration files..."
+    if ! git clone --quiet https://github.com/abd3lraouf/server-config.git .; then
+        echo "❌ Failed to download repository. Please check your internet connection."
+        exit 1
+    fi
+
+    # Make scripts executable
+    chmod +x setup.sh
+    find src -name "*.sh" -exec chmod +x {} \;
+
+    echo "✅ Download complete. Starting setup..."
+    echo ""
+
+        # Execute the actual setup script with remaining arguments
+        shift 2>/dev/null || true  # Remove --curl-install if present
+        exec sudo "$INSTALL_DIR/setup.sh" "--from-curl" "$@"
+    fi
+fi
+
 # Script metadata
-readonly SCRIPT_VERSION="2.0.0"
+readonly SCRIPT_VERSION="2.1.0"
 readonly SCRIPT_NAME="Ubuntu Server Setup Orchestrator"
+readonly REPO_URL="https://github.com/abd3lraouf/server-config"
 
 # Detect script directory
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "${SCRIPT_DIR:-}" = "" ]; then
+    readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 readonly SRC_DIR="${SCRIPT_DIR}/src"
 
 # Export for use by modules
@@ -356,6 +399,11 @@ main() {
             -v|--version)
                 show_version
                 exit 0
+                ;;
+            --from-curl)
+                # This flag indicates we're running from the curl installation
+                # Just skip it and continue
+                shift
                 ;;
             -n|--non-interactive)
                 export INTERACTIVE_MODE="false"
