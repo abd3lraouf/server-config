@@ -105,22 +105,6 @@ list_modules() {
     for module in "${SRC_DIR}"/menu/*.sh; do
         [[ -f "$module" ]] && echo "  • $(basename "$module")"
     done
-
-    if ls "${SRC_DIR}"/containers/*.sh &>/dev/null 2>&1; then
-        echo ""
-        echo "Container Modules:"
-        for module in "${SRC_DIR}"/containers/*.sh; do
-            [[ -f "$module" ]] && echo "  • $(basename "$module")"
-        done
-    fi
-
-    if ls "${SRC_DIR}"/monitoring/*.sh &>/dev/null 2>&1; then
-        echo ""
-        echo "Monitoring Modules:"
-        for module in "${SRC_DIR}"/monitoring/*.sh; do
-            [[ -f "$module" ]] && echo "  • $(basename "$module")"
-        done
-    fi
 }
 
 # ============================================================================
@@ -243,41 +227,31 @@ run_development() {
 run_zero_trust() {
     print_header "Zero Trust Security Setup"
 
-    # Check if Zero Trust orchestrator exists
-    if [[ -f "${SRC_DIR}/scripts/zero-trust.sh" ]]; then
-        print_status "Launching Zero Trust orchestrator..."
-        source "${SRC_DIR}/scripts/zero-trust.sh"
-        run_zero_trust_setup
-    else
-        # Fallback to basic security setup
-        print_warning "Full orchestrator not found, running basic security setup..."
+    # Load all security modules
+    load_module "base/system-update.sh"
+    load_module "security/firewall.sh"
+    load_module "security/tailscale.sh"
 
-        # Load security modules
-        load_module "base/system-update.sh"
-        load_module "security/firewall.sh"
-        load_module "security/tailscale.sh"
+    # Run complete setup
+    print_status "Phase 1: System Updates"
+    system_update
+    configure_auto_updates
 
-        # Run basic setup
-        print_status "Phase 1: System Updates"
-        system_update
-        configure_auto_updates
-
-        print_status "Phase 2: Firewall Configuration"
-        configure_ufw
-        if command -v docker &>/dev/null; then
-            configure_ufw_docker
-        fi
-
-        print_status "Phase 3: Tailscale VPN"
-        install_tailscale
-        if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-            configure_tailscale_interactive
-        else
-            configure_tailscale
-        fi
-
-        print_success "Basic security setup completed!"
+    print_status "Phase 2: Firewall Configuration"
+    configure_ufw
+    if command -v docker &>/dev/null; then
+        configure_ufw_docker
     fi
+
+    print_status "Phase 3: Tailscale VPN"
+    install_tailscale
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        configure_tailscale_interactive
+    else
+        configure_tailscale
+    fi
+
+    print_success "Zero Trust setup completed!"
 }
 
 # Run specific module
