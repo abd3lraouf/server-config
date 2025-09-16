@@ -13,8 +13,8 @@ set -euo pipefail
 if [ "${1:-}" != "--from-curl" ]; then
     # Detect if script is being run via curl/wget (one-liner installation)
     if [ ! -t 0 ] || [ "${1:-}" = "--curl-install" ]; then
-    echo "🚀 Ubuntu Server Setup - One-Liner Installation"
-    echo "================================================"
+        echo "🚀 Ubuntu Server Setup - One-Liner Installation"
+        echo "================================================"
 
     # Create temporary directory for installation
     INSTALL_DIR="/tmp/server-config-$$"
