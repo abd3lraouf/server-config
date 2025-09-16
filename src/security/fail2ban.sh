@@ -12,9 +12,9 @@ readonly FAIL2BAN_JAIL_LOCAL="${FAIL2BAN_CONFIG_DIR}/jail.local"
 readonly FAIL2BAN_JAIL_D="${FAIL2BAN_CONFIG_DIR}/jail.d"
 
 # Default settings
-readonly DEFAULT_BANTIME="${FAIL2BAN_BANTIME:-3600}"
-readonly DEFAULT_FINDTIME="${FAIL2BAN_FINDTIME:-600}"
-readonly DEFAULT_MAXRETRY="${FAIL2BAN_MAXRETRY:-3}"
+[[ -z "${DEFAULT_BANTIME:-}" ]] && readonly DEFAULT_BANTIME="${FAIL2BAN_BANTIME:-3600}"
+[[ -z "${DEFAULT_FINDTIME:-}" ]] && readonly DEFAULT_FINDTIME="${FAIL2BAN_FINDTIME:-600}"
+[[ -z "${DEFAULT_MAXRETRY:-}" ]] && readonly DEFAULT_MAXRETRY="${FAIL2BAN_MAXRETRY:-3}"
 
 # ============================================================================
 # Fail2ban Installation

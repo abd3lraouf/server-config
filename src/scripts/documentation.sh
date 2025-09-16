@@ -14,7 +14,7 @@ readonly DOC_ASSETS_DIR="$DOC_DIR/assets"
 
 # Documentation formats
 readonly FORMATS=("markdown" "html" "pdf" "json")
-readonly DEFAULT_FORMAT="markdown"
+[[ -z "${DEFAULT_FORMAT:-}" ]] && readonly DEFAULT_FORMAT="markdown"
 
 # ============================================================================
 # Setup and Installation

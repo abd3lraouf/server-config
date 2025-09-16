@@ -7,8 +7,8 @@
 [[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="timezone-locale"
 
 # Configuration defaults
-readonly DEFAULT_TIMEZONE="${DEFAULT_TIMEZONE:-UTC}"
-readonly DEFAULT_LOCALE="${DEFAULT_LOCALE:-en_US.UTF-8}"
+[[ -z "${DEFAULT_TIMEZONE:-}" ]] && readonly DEFAULT_TIMEZONE="${DEFAULT_TIMEZONE:-UTC}"
+[[ -z "${DEFAULT_LOCALE:-}" ]] && readonly DEFAULT_LOCALE="${DEFAULT_LOCALE:-en_US.UTF-8}"
 readonly NTP_SERVERS="${NTP_SERVERS:-0.ubuntu.pool.ntp.org 1.ubuntu.pool.ntp.org}"
 
 # ============================================================================

@@ -7,7 +7,7 @@
 [[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="user-setup"
 
 # User configuration
-readonly DEFAULT_SHELL="${DEFAULT_SHELL:-/bin/bash}"
+[[ -z "${DEFAULT_SHELL:-}" ]] && readonly DEFAULT_SHELL="${DEFAULT_SHELL:-/bin/bash}"
 readonly PASSWORD_MIN_LENGTH="${PASSWORD_MIN_LENGTH:-14}"
 readonly PASSWORD_MAX_AGE="${PASSWORD_MAX_AGE:-90}"
 readonly SUDO_TIMEOUT="${SUDO_TIMEOUT:-15}"

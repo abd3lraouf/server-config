@@ -7,9 +7,9 @@
 [[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="firewall"
 
 # Default ports configuration
-readonly DEFAULT_SSH_PORT="${SSH_PORT:-22}"
-readonly DEFAULT_HTTP_PORT="${HTTP_PORT:-80}"
-readonly DEFAULT_HTTPS_PORT="${HTTPS_PORT:-443}"
+[[ -z "${DEFAULT_SSH_PORT:-}" ]] && readonly DEFAULT_SSH_PORT="${SSH_PORT:-22}"
+[[ -z "${DEFAULT_HTTP_PORT:-}" ]] && readonly DEFAULT_HTTP_PORT="${HTTP_PORT:-80}"
+[[ -z "${DEFAULT_HTTPS_PORT:-}" ]] && readonly DEFAULT_HTTPS_PORT="${HTTPS_PORT:-443}"
 
 # ============================================================================
 # Basic UFW Configuration

@@ -14,10 +14,10 @@ readonly CUSTOM_CONF_DIR="/etc/logwatch/conf"
 readonly REPORT_DIR="/var/log/logwatch"
 
 # Report settings
-readonly DEFAULT_DETAIL="Med"  # Low, Med, High, or 0-10
-readonly DEFAULT_RANGE="yesterday"  # yesterday, today, all
-readonly DEFAULT_FORMAT="text"  # text or html
-readonly DEFAULT_MAILTO="root"
+[[ -z "${DEFAULT_DETAIL:-}" ]] && readonly DEFAULT_DETAIL="Med"  # Low, Med, High, or 0-10
+[[ -z "${DEFAULT_RANGE:-}" ]] && readonly DEFAULT_RANGE="yesterday"  # yesterday, today, all
+[[ -z "${DEFAULT_FORMAT:-}" ]] && readonly DEFAULT_FORMAT="text"  # text or html
+[[ -z "${DEFAULT_MAILTO:-}" ]] && readonly DEFAULT_MAILTO="root"
 
 # ============================================================================
 # Installation and Setup
