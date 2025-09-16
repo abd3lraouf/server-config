@@ -7,11 +7,9 @@
 
 **Enterprise-grade modular server configuration system for Ubuntu with Zero Trust security architecture.**
 
-## 🎯 THE One-Line Installation
+## 🎯 Installation
 
-### Simplest Installation - Auto-runs Basic Setup
 ```bash
-# Downloads and automatically runs basic setup after 5-second countdown
 curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash
 ```
 
@@ -20,25 +18,7 @@ Or with wget:
 wget -qO- https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash
 ```
 
-## 🚀 Advanced One-Liners - Specific Setups
-
-### Choose Your Setup Type
-```bash
-# Basic setup (system updates + essential tools)
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- basic
-
-# Security hardening (firewall + SSH security)
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- security
-
-# Development environment (Zsh + Node.js + tools)
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- dev
-
-# Complete Zero Trust setup
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- zero-trust
-
-# View all available options
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- --help
-```
+This will download the setup script and show you all available options to run.
 
 ## 📦 What's Included
 

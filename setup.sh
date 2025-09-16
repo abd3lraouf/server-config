@@ -59,30 +59,31 @@ if [ "${1:-}" != "--from-curl" ]; then
             export INTERACTIVE_MODE=false
             exec sudo -E ./setup.sh "--from-curl" "$@" </dev/null 2>&1
         else
-            # No command specified - default to basic setup with confirmation
+            # No command specified - show menu options
             echo ""
-            echo "✨ Ubuntu Server Setup Ready!"
+            echo "✨ Ubuntu Server Setup - Downloaded Successfully!"
             echo "================================================"
             echo ""
-            echo "No command specified. Starting basic setup in 5 seconds..."
-            echo "Press Ctrl+C to cancel and see other options."
+            echo "📋 Available Setup Options:"
             echo ""
-
-            # Give user time to cancel
-            for i in 5 4 3 2 1; do
-                echo -n "$i... "
-                sleep 1
-            done
+            echo "  1. Basic Server Setup (system updates + essential tools)"
+            echo "     ➜ cd $INSTALL_DIR && sudo ./setup.sh basic"
             echo ""
+            echo "  2. Security Hardening (firewall + SSH security)"
+            echo "     ➜ cd $INSTALL_DIR && sudo ./setup.sh security"
             echo ""
-            echo "🚀 Running automated setup: basic"
-            echo "================================================"
+            echo "  3. Development Environment (Zsh + Node.js + tools)"
+            echo "     ➜ cd $INSTALL_DIR && sudo ./setup.sh dev"
             echo ""
-
-            # Execute basic setup
-            cd "$INSTALL_DIR"
-            export INTERACTIVE_MODE=false
-            exec sudo -E ./setup.sh "--from-curl" basic </dev/null 2>&1
+            echo "  4. Complete Zero Trust Setup"
+            echo "     ➜ cd $INSTALL_DIR && sudo ./setup.sh zero-trust"
+            echo ""
+            echo "  5. Interactive Menu (full options)"
+            echo "     ➜ cd $INSTALL_DIR && sudo ./setup.sh"
+            echo ""
+            echo "Choose a command above and run it to continue."
+            echo ""
+            exit 0
         fi
     fi
 fi
