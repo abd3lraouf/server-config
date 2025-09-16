@@ -41,7 +41,26 @@ if [ "${1:-}" != "--from-curl" ]; then
 
         # Execute the actual setup script with remaining arguments
         shift 2>/dev/null || true  # Remove --curl-install if present
-        exec sudo "$INSTALL_DIR/setup.sh" "--from-curl" "$@"
+
+        # For curl installations, provide clear instructions since we can't get terminal input
+        echo ""
+        echo "✨ Installation downloaded successfully!"
+        echo ""
+        echo "📋 To continue with setup, run one of these commands:"
+        echo ""
+        echo "  Interactive menu:"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh"
+        echo ""
+        echo "  Quick setups:"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh basic      # Basic server setup"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh security   # Security hardening"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh dev        # Development environment"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh zero-trust # Complete Zero Trust setup"
+        echo ""
+        echo "  View all options:"
+        echo "    cd $INSTALL_DIR && sudo ./setup.sh --help"
+        echo ""
+        exit 0
     fi
 fi
 
