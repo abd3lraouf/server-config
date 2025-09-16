@@ -57,29 +57,30 @@ if [ "${1:-}" != "--from-curl" ]; then
             export INTERACTIVE_MODE=false
             exec sudo -E ./setup.sh "--from-curl" "$@" </dev/null 2>&1
         else
-            # No command specified - show instructions for manual execution
+            # No command specified - default to basic setup with confirmation
             echo ""
-            echo "✨ Installation downloaded successfully!"
+            echo "✨ Ubuntu Server Setup Ready!"
+            echo "================================================"
             echo ""
-            echo "📋 To continue with setup, run one of these commands:"
+            echo "No command specified. Starting basic setup in 5 seconds..."
+            echo "Press Ctrl+C to cancel and see other options."
             echo ""
-            echo "  Interactive menu:"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh"
+
+            # Give user time to cancel
+            for i in 5 4 3 2 1; do
+                echo -n "$i... "
+                sleep 1
+            done
             echo ""
-            echo "  Quick setups:"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh basic      # Basic server setup"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh security   # Security hardening"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh dev        # Development environment"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh zero-trust # Complete Zero Trust setup"
             echo ""
-            echo "  Or use one-liners with automatic execution:"
-            echo "    curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- basic"
-            echo "    curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- security"
+            echo "🚀 Running automated setup: basic"
+            echo "================================================"
             echo ""
-            echo "  View all options:"
-            echo "    cd $INSTALL_DIR && sudo ./setup.sh --help"
-            echo ""
-            exit 0
+
+            # Execute basic setup
+            cd "$INSTALL_DIR"
+            export INTERACTIVE_MODE=false
+            exec sudo -E ./setup.sh "--from-curl" basic </dev/null 2>&1
         fi
     fi
 fi
