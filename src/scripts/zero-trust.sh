@@ -666,7 +666,9 @@ export -f phase9_validation phase10_final_report
 export -f run_zero_trust_setup run_specific_phase
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 SRC_DIR="$(dirname "$SCRIPT_DIR")"
 source "${SRC_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SRC_DIR}/lib/config.sh" 2>/dev/null || true

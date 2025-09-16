@@ -1084,7 +1084,9 @@ export -f generate_dependency_graph generate_html generate_pdf
 export -f generate_complete_docs
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 
 # Main execution

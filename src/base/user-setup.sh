@@ -750,7 +750,9 @@ export -f configure_password_policies list_users audit_user_permissions
 export -f audit_weak_users create_user_interactive setup_users_complete
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/backup.sh" 2>/dev/null || true
 

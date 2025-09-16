@@ -383,7 +383,9 @@ export -f configure_tailscale_firewall harden_firewall
 export -f backup_firewall_config restore_firewall_config
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/config.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/backup.sh" 2>/dev/null || true

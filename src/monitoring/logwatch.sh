@@ -840,7 +840,9 @@ export -f analyze_period top_security_events
 export -f setup_logwatch_complete
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 
 # Main execution

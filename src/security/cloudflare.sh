@@ -517,7 +517,9 @@ export -f configure_access_policies show_tunnel_status test_tunnel
 export -f remove_tunnel setup_cloudflare_interactive
 
 # Source required libraries
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/config.sh" 2>/dev/null || true
 
