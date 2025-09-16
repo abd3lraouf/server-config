@@ -1086,7 +1086,7 @@ export -f generate_complete_docs
 # Source required libraries
 # Use existing SCRIPT_DIR if available, otherwise detect it
 if [[ -z "${SCRIPT_DIR:-}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
 # Ensure SRC_DIR is set for module loading
