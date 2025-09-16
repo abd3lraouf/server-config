@@ -22,6 +22,8 @@ if [ "${1:-}" != "--from-curl" ]; then
 
     # Clean up any existing installation
     rm -rf "$INSTALL_DIR" 2>/dev/null || true
+    # Also clean up any old server-config directories older than 1 hour
+    find /tmp -maxdepth 1 -name "server-config-*" -type d -mmin +60 -exec rm -rf {} \; 2>/dev/null || true
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 
