@@ -3,8 +3,8 @@
 # Manages SSH configuration, key-based authentication, and security settings
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="ssh-security"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="ssh-security"
 
 # SSH Configuration
 readonly SSH_CONFIG="/etc/ssh/sshd_config"
@@ -622,8 +622,14 @@ export -f configure_fail2ban_ssh audit_ssh_config
 export -f show_ssh_connections kill_ssh_session
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/backup.sh" 2>/dev/null || true

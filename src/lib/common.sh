@@ -3,17 +3,17 @@
 # This library provides core functionality for logging, output formatting, and error handling
 
 # Script metadata
-readonly LIB_VERSION="1.0.0"
-readonly LIB_NAME="common"
+[[ -z "${LIB_VERSION:-}" ]] && readonly LIB_VERSION="1.0.0"
+[[ -z "${LIB_NAME:-}" ]] && readonly LIB_NAME="common"
 
 # Colors for output
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly MAGENTA='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly NC='\033[0m' # No Color
+[[ -z "${RED:-}" ]] && readonly RED='\033[0;31m'
+[[ -z "${GREEN:-}" ]] && readonly GREEN='\033[0;32m'
+[[ -z "${YELLOW:-}" ]] && readonly YELLOW='\033[1;33m'
+[[ -z "${BLUE:-}" ]] && readonly BLUE='\033[0;34m'
+[[ -z "${MAGENTA:-}" ]] && readonly MAGENTA='\033[0;35m'
+[[ -z "${CYAN:-}" ]] && readonly CYAN='\033[0;36m'
+[[ -z "${NC:-}" ]] && readonly NC='\033[0m' # No Color
 
 # Export colors for use in other scripts
 export RED GREEN YELLOW BLUE MAGENTA CYAN NC
@@ -281,3 +281,22 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Common library v${LIB_VERSION} loaded successfully"
     echo "This library provides shared utilities for the Zero Trust setup scripts"
 fi
+# Universal module loading function
+load_module() {
+    local module="$1"
+    local module_path
+
+    # Try multiple paths
+    for base in "${SRC_DIR}" "${SCRIPT_DIR}/.." "/home/ubuntu/server-config/src"; do
+        [[ -z "${base}" ]] && continue
+        module_path="${base}/${module}"
+        if [[ -f "$module_path" ]]; then
+            source "$module_path"
+            return 0
+        fi
+    done
+
+    print_error "Module not found: $module"
+    return 1
+}
+export -f load_module

@@ -3,8 +3,8 @@
 # Manages firewall rules and Docker integration
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="firewall"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="firewall"
 
 # Default ports configuration
 readonly DEFAULT_SSH_PORT="${SSH_PORT:-22}"
@@ -383,8 +383,14 @@ export -f configure_tailscale_firewall harden_firewall
 export -f backup_firewall_config restore_firewall_config
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/config.sh" 2>/dev/null || true

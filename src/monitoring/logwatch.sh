@@ -3,8 +3,8 @@
 # Provides comprehensive log monitoring, analysis, and alerting capabilities
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="logwatch-analysis"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="logwatch-analysis"
 
 # Configuration
 readonly LOGWATCH_CONF_DIR="/etc/logwatch"
@@ -840,8 +840,14 @@ export -f analyze_period top_security_events
 export -f setup_logwatch_complete
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 

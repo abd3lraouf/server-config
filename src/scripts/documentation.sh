@@ -3,8 +3,8 @@
 # Generates markdown, HTML, and PDF documentation for the entire system
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="documentation-generator"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="documentation-generator"
 
 # Configuration
 readonly DOC_DIR="/var/lib/server-docs"
@@ -1084,8 +1084,14 @@ export -f generate_dependency_graph generate_html generate_pdf
 export -f generate_complete_docs
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 

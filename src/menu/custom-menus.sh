@@ -3,8 +3,8 @@
 # Allows users to build personalized menus and save preset configurations
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="custom-menu-builder"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="custom-menu-builder"
 
 # Configuration
 readonly CUSTOM_MENU_DIR="/etc/server-config/custom-menus"
@@ -965,8 +965,14 @@ export -f load_preset list_presets
 export -f display_quick_access_menu show_favorites_menu
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 

@@ -3,8 +3,8 @@
 # This library provides comprehensive validation for all user inputs
 
 # Library metadata
-readonly LIB_VALIDATION_VERSION="1.0.0"
-readonly LIB_VALIDATION_NAME="validation"
+[[ -z "${LIB_VALIDATION_VERSION:-}" ]] && readonly LIB_VALIDATION_VERSION="1.0.0"
+[[ -z "${LIB_VALIDATION_NAME:-}" ]] && readonly LIB_VALIDATION_NAME="validation"
 
 # ============================================================================
 # Email Validation

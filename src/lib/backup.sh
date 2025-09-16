@@ -3,8 +3,8 @@
 # Provides functions for creating backups, restoring files, and emergency rollback
 
 # Library metadata
-readonly LIB_BACKUP_VERSION="1.0.0"
-readonly LIB_BACKUP_NAME="backup"
+[[ -z "${LIB_BACKUP_VERSION:-}" ]] && readonly LIB_BACKUP_VERSION="1.0.0"
+[[ -z "${LIB_BACKUP_NAME:-}" ]] && readonly LIB_BACKUP_NAME="backup"
 
 # Backup configuration
 export BACKUP_DIR="${BACKUP_DIR:-${HOME}/.config-backup-$(date +%Y%m%d-%H%M%S)}"

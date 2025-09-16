@@ -3,14 +3,14 @@
 # Provides comprehensive menu navigation with categories and progress tracking
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="main-menu"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="main-menu"
 
 # Configuration
-readonly MENU_CONFIG_DIR="/etc/server-config/menu"
-readonly MENU_STATE_FILE="$MENU_CONFIG_DIR/state.json"
-readonly MENU_HISTORY_FILE="$MENU_CONFIG_DIR/history.log"
-readonly MENU_PRESETS_DIR="$MENU_CONFIG_DIR/presets"
+[[ -z "${MENU_CONFIG_DIR:-}" ]] && readonly MENU_CONFIG_DIR="/etc/server-config/menu"
+[[ -z "${MENU_STATE_FILE:-}" ]] && readonly MENU_STATE_FILE="$MENU_CONFIG_DIR/state.json"
+[[ -z "${MENU_HISTORY_FILE:-}" ]] && readonly MENU_HISTORY_FILE="$MENU_CONFIG_DIR/history.log"
+[[ -z "${MENU_PRESETS_DIR:-}" ]] && readonly MENU_PRESETS_DIR="$MENU_CONFIG_DIR/presets"
 
 # Colors and formatting
 readonly COLOR_HEADER="\033[1;36m"    # Cyan bold
@@ -954,8 +954,14 @@ export -f execute_option mark_completed mark_in_progress
 export -f display_progress_report display_system_status
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 

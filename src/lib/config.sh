@@ -3,8 +3,8 @@
 # Handles loading, saving, and managing configuration values
 
 # Library metadata
-readonly LIB_CONFIG_VERSION="1.0.0"
-readonly LIB_CONFIG_NAME="config"
+[[ -z "${LIB_CONFIG_VERSION:-}" ]] && readonly LIB_CONFIG_VERSION="1.0.0"
+[[ -z "${LIB_CONFIG_NAME:-}" ]] && readonly LIB_CONFIG_NAME="config"
 
 # Default configuration values
 declare -g MAIN_USER="${MAIN_USER:-}"

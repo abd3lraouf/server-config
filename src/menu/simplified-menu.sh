@@ -3,8 +3,8 @@
 # Provides user-friendly menu interface with common configuration options
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="simplified-menu"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="simplified-menu"
 
 # Menu colors
 readonly MENU_HEADER="\033[1;36m"

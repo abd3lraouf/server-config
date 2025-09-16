@@ -3,8 +3,8 @@
 # Manages fail2ban installation, configuration, and jail management
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="fail2ban"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="fail2ban"
 
 # Fail2ban configuration
 readonly FAIL2BAN_CONFIG_DIR="/etc/fail2ban"
@@ -651,8 +651,14 @@ export -f show_fail2ban_status ban_ip unban_ip show_jail_status
 export -f test_regex generate_report setup_fail2ban_complete
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/backup.sh" 2>/dev/null || true

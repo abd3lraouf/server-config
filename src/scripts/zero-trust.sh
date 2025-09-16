@@ -3,8 +3,8 @@
 # Coordinates all security modules for complete Zero Trust setup
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="zero-trust-orchestrator"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="zero-trust-orchestrator"
 
 # Configuration
 readonly ZERO_TRUST_LOG="/var/log/zero-trust-setup.log"
@@ -666,8 +666,14 @@ export -f phase9_validation phase10_final_report
 export -f run_zero_trust_setup run_specific_phase
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 SRC_DIR="$(dirname "$SCRIPT_DIR")"
 source "${SRC_DIR}/lib/common.sh" 2>/dev/null || true

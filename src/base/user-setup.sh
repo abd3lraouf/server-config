@@ -3,8 +3,8 @@
 # Manages user accounts, groups, sudo access, and password policies
 
 # Script metadata
-readonly MODULE_VERSION="1.0.0"
-readonly MODULE_NAME="user-setup"
+[[ -z "${MODULE_VERSION:-}" ]] && readonly MODULE_VERSION="1.0.0"
+[[ -z "${MODULE_NAME:-}" ]] && readonly MODULE_NAME="user-setup"
 
 # User configuration
 readonly DEFAULT_SHELL="${DEFAULT_SHELL:-/bin/bash}"
@@ -750,8 +750,14 @@ export -f configure_password_policies list_users audit_user_permissions
 export -f audit_weak_users create_user_interactive setup_users_complete
 
 # Source required libraries
-if [ -z "${SCRIPT_DIR:-}" ]; then
+# Use existing SCRIPT_DIR if available, otherwise detect it
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
 fi
 source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/../lib/backup.sh" 2>/dev/null || true
