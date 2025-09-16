@@ -9,6 +9,7 @@
 
 ## 🎯 One-Line Installation
 
+### Download Only (Shows Instructions)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash
 ```
@@ -18,26 +19,24 @@ Or with wget:
 wget -qO- https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash
 ```
 
-## 🚀 Quick Start Options
+## 🚀 Quick Start - Automatic Execution
 
-### Interactive Menu (Default)
+### One-Liners That Download AND Execute
 ```bash
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash
-```
-
-### Specific Configurations
-```bash
-# Basic setup (system updates, shell, dev tools)
+# Basic setup (system updates + essential tools) - Runs immediately
 curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- basic
 
-# Security hardening
+# Security hardening (firewall + SSH security) - Runs immediately
 curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- security
 
-# Complete Zero Trust setup
+# Development environment (Zsh + Node.js + tools) - Runs immediately
+curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- dev
+
+# Complete Zero Trust setup - Runs immediately
 curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- zero-trust
 
-# Development environment
-curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- development
+# View all available options
+curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- --help
 ```
 
 ## 📦 What's Included

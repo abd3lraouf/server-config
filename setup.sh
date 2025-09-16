@@ -40,27 +40,47 @@ if [ "${1:-}" != "--from-curl" ]; then
     echo ""
 
         # Execute the actual setup script with remaining arguments
-        shift 2>/dev/null || true  # Remove --curl-install if present
+        # Only shift if first arg is --curl-install
+        if [ "${1:-}" = "--curl-install" ]; then
+            shift
+        fi
 
-        # For curl installations, provide clear instructions since we can't get terminal input
-        echo ""
-        echo "✨ Installation downloaded successfully!"
-        echo ""
-        echo "📋 To continue with setup, run one of these commands:"
-        echo ""
-        echo "  Interactive menu:"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh"
-        echo ""
-        echo "  Quick setups:"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh basic      # Basic server setup"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh security   # Security hardening"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh dev        # Development environment"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh zero-trust # Complete Zero Trust setup"
-        echo ""
-        echo "  View all options:"
-        echo "    cd $INSTALL_DIR && sudo ./setup.sh --help"
-        echo ""
-        exit 0
+        # Check if commands were passed for automatic execution
+        if [ $# -gt 0 ]; then
+            echo ""
+            echo "🚀 Running automated setup: $*"
+            echo "================================================"
+            echo ""
+
+            # Execute with non-interactive mode for curl installs
+            cd "$INSTALL_DIR"
+            export INTERACTIVE_MODE=false
+            exec sudo -E ./setup.sh "--from-curl" "$@" </dev/null 2>&1
+        else
+            # No command specified - show instructions for manual execution
+            echo ""
+            echo "✨ Installation downloaded successfully!"
+            echo ""
+            echo "📋 To continue with setup, run one of these commands:"
+            echo ""
+            echo "  Interactive menu:"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh"
+            echo ""
+            echo "  Quick setups:"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh basic      # Basic server setup"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh security   # Security hardening"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh dev        # Development environment"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh zero-trust # Complete Zero Trust setup"
+            echo ""
+            echo "  Or use one-liners with automatic execution:"
+            echo "    curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- basic"
+            echo "    curl -fsSL https://raw.githubusercontent.com/abd3lraouf/server-config/main/setup.sh | sudo bash -s -- security"
+            echo ""
+            echo "  View all options:"
+            echo "    cd $INSTALL_DIR && sudo ./setup.sh --help"
+            echo ""
+            exit 0
+        fi
     fi
 fi
 
