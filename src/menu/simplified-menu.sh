@@ -383,13 +383,19 @@ run_preset_menu() {
 # Source a module safely
 source_module() {
     local module="$1"
-    local module_path="${SCRIPT_DIR}/../${module}"
+
+    # Use SRC_DIR if available (from setup.sh), otherwise construct path
+    if [[ -n "${SRC_DIR:-}" ]]; then
+        local module_path="${SRC_DIR}/${module}"
+    else
+        local module_path="${SCRIPT_DIR}/../${module}"
+    fi
 
     if [[ -f "$module_path" ]]; then
         source "$module_path"
         return 0
     else
-        print_error "Module not found: $module"
+        print_error "Module not found: $module (looked in $module_path)"
         return 1
     fi
 }
@@ -464,8 +470,24 @@ export -f source_module confirm_action detect_main_user
 if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
-source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
-source "${SCRIPT_DIR}/../lib/config.sh" 2>/dev/null || true
+
+# Ensure SRC_DIR is set for module loading
+if [[ -z "${SRC_DIR:-}" ]]; then
+    SRC_DIR="${SCRIPT_DIR}/.."
+fi
+
+# Source required libraries
+if [[ -f "${SRC_DIR}/lib/common.sh" ]]; then
+    source "${SRC_DIR}/lib/common.sh"
+else
+    source "${SCRIPT_DIR}/../lib/common.sh" 2>/dev/null || true
+fi
+
+if [[ -f "${SRC_DIR}/lib/config.sh" ]]; then
+    source "${SRC_DIR}/lib/config.sh"
+else
+    source "${SCRIPT_DIR}/../lib/config.sh" 2>/dev/null || true
+fi
 
 # Set interactive mode if not set
 INTERACTIVE_MODE="${INTERACTIVE_MODE:-true}"
