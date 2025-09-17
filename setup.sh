@@ -156,27 +156,51 @@ get_docker_compose_cmd() {
         echo "docker-compose"
     elif docker compose version &> /dev/null 2>&1; then
         echo "docker compose"
+    elif command -v podman-compose &> /dev/null; then
+        echo "podman-compose"
     else
         echo ""
     fi
 }
 
-# Helper function to ensure Docker network exists
+# Helper function to ensure Docker/Podman network exists
 ensure_docker_network() {
     local network_name="${1:-internal}"
-    
-    if ! sudo docker network ls --format '{{.Name}}' | grep -q "^${network_name}$"; then
-        print_status "Creating Docker network: $network_name..."
-        if sudo docker network create "$network_name" >/dev/null 2>&1; then
-            print_success "Docker network '$network_name' created"
-            return 0
+
+    # Check which container runtime is available
+    if command -v docker &>/dev/null && systemctl is-active --quiet docker 2>/dev/null; then
+        # Docker is available and running
+        if ! sudo docker network ls --format '{{.Name}}' 2>/dev/null | grep -q "^${network_name}$"; then
+            print_status "Creating Docker network: $network_name..."
+            if sudo docker network create "$network_name" >/dev/null 2>&1; then
+                print_success "Docker network '$network_name' created"
+                return 0
+            else
+                print_error "Failed to create Docker network '$network_name'"
+                return 1
+            fi
         else
-            print_error "Failed to create Docker network '$network_name'"
-            return 1
+            print_status "Docker network '$network_name' already exists"
+            return 0
+        fi
+    elif command -v podman &>/dev/null; then
+        # Podman is available
+        if ! podman network ls --format '{{.Name}}' 2>/dev/null | grep -q "^${network_name}$"; then
+            print_status "Creating Podman network: $network_name..."
+            if podman network create "$network_name" >/dev/null 2>&1; then
+                print_success "Podman network '$network_name' created"
+                return 0
+            else
+                print_error "Failed to create Podman network '$network_name'"
+                return 1
+            fi
+        else
+            print_status "Podman network '$network_name' already exists"
+            return 0
         fi
     else
-        print_status "Docker network '$network_name' already exists"
-        return 0
+        print_warning "No container runtime (Docker/Podman) available to create network"
+        return 1
     fi
 }
 
@@ -836,6 +860,11 @@ install_zsh() {
     else
         print_warning "Main user not detected, skipping user shell change"
     fi
+
+    # Important notification about shell change
+    print_warning "IMPORTANT: Shell change to Zsh will take effect after logout/login"
+    print_status "To switch to Zsh immediately, run: exec zsh"
+    print_status "After switching, you may need to run: source ~/.zshrc"
 }
 
 # Function 2: Install Oh-My-Zsh
@@ -984,17 +1013,34 @@ install_powerlevel10k() {
 # Function 4: Deploy configuration files
 deploy_configs() {
     print_status "Deploying configuration files..."
-    
-    # First, check if we need to download the files from GitHub
+
+    # Verify config files exist
+    local configs_found=true
+
+    # Check for zshrc (try both with and without dot)
     if [ ! -f "$SCRIPT_DIR/.zshrc" ] && [ ! -f "$SCRIPT_DIR/zshrc" ]; then
-        print_status "Configuration files not found locally. Downloading from GitHub..."
-        wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/zshrc -O "$SCRIPT_DIR/zshrc" || \
-        wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/.zshrc -O "$SCRIPT_DIR/.zshrc"
+        print_warning "Zsh configuration file not found locally"
+        print_status "Attempting to download from GitHub..."
+        if ! wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/zshrc -O "$SCRIPT_DIR/zshrc"; then
+            print_error "Failed to download zshrc from GitHub"
+            configs_found=false
+        fi
     fi
-    
+
+    # Check for p10k.zsh (try both with and without dot)
     if [ ! -f "$SCRIPT_DIR/.p10k.zsh" ] && [ ! -f "$SCRIPT_DIR/p10k.zsh" ]; then
-        wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/p10k.zsh -O "$SCRIPT_DIR/p10k.zsh" || \
-        wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/.p10k.zsh -O "$SCRIPT_DIR/.p10k.zsh"
+        print_warning "Powerlevel10k configuration file not found locally"
+        print_status "Attempting to download from GitHub..."
+        if ! wget -q https://raw.githubusercontent.com/abd3lraouf/server-config/main/p10k.zsh -O "$SCRIPT_DIR/p10k.zsh"; then
+            print_error "Failed to download p10k.zsh from GitHub"
+            configs_found=false
+        fi
+    fi
+
+    if [ "$configs_found" = false ]; then
+        print_error "Some configuration files could not be found or downloaded"
+        print_warning "Please ensure zshrc and p10k.zsh files exist in the repository"
+        return 1
     fi
     
     deploy_for_user() {
@@ -1056,10 +1102,35 @@ deploy_configs() {
     
     # Deploy for root
     deploy_for_user "root"
-    
+
     # Deploy for main user
     if [ -n "$MAIN_USER" ]; then
         deploy_for_user "$MAIN_USER"
+    fi
+
+    # Validate deployment
+    print_status "Validating configuration deployment..."
+    local validation_passed=true
+
+    # Check root configs
+    if [ ! -f "/root/.zshrc" ] || [ ! -f "/root/.p10k.zsh" ]; then
+        print_error "Root configuration files missing after deployment"
+        validation_passed=false
+    fi
+
+    # Check main user configs if applicable
+    if [ -n "$MAIN_USER" ]; then
+        if [ ! -f "/home/$MAIN_USER/.zshrc" ] || [ ! -f "/home/$MAIN_USER/.p10k.zsh" ]; then
+            print_error "User configuration files missing after deployment"
+            validation_passed=false
+        fi
+    fi
+
+    if [ "$validation_passed" = true ]; then
+        print_success "All configuration files deployed successfully!"
+        print_status "Configs will be active after switching to Zsh"
+    else
+        print_error "Configuration deployment incomplete - please check the errors above"
     fi
 }
 
@@ -1215,32 +1286,43 @@ install_htop() {
 # Function 10: Configure UFW Firewall
 configure_ufw() {
     print_status "Configuring UFW firewall..."
-    
+
     # Install UFW if not present
     if ! command -v ufw &> /dev/null; then
         sudo apt update
         sudo apt install -y ufw
     fi
-    
+
+    # Fix iptables compatibility for UFW
+    print_status "Checking iptables compatibility..."
+    if iptables --version 2>/dev/null | grep -q "nf_tables"; then
+        print_warning "Detected nf_tables. Switching to iptables-legacy for UFW compatibility..."
+        sudo update-alternatives --set iptables /usr/sbin/iptables-legacy 2>/dev/null || true
+        sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy 2>/dev/null || true
+        sudo update-alternatives --set arptables /usr/sbin/arptables-legacy 2>/dev/null || true
+        sudo update-alternatives --set ebtables /usr/sbin/ebtables-legacy 2>/dev/null || true
+        print_success "Switched to iptables-legacy"
+    fi
+
     # Reset UFW to defaults
     print_status "Resetting UFW to defaults..."
     echo "y" | sudo ufw --force reset
-    
+
     # Set default policies
     sudo ufw default deny incoming
     sudo ufw default allow outgoing
-    
+
     # Allow SSH (port 22)
     print_status "Allowing SSH access..."
     sudo ufw allow ssh
-    
+
     # Enable UFW
     print_status "Enabling UFW..."
     echo "y" | sudo ufw --force enable
-    
+
     # Show status
     sudo ufw status verbose
-    
+
     print_success "UFW firewall configured and enabled"
     print_warning "Only SSH (port 22) is allowed. Configure additional ports as needed."
 }
@@ -1549,36 +1631,64 @@ EOF
 configure_ufw_docker() {
     print_status "Configuring UFW with Docker integration..."
     log_action "Starting UFW-Docker configuration" "INFO"
-    
+
     # Install UFW if not present
     if ! command -v ufw &> /dev/null; then
         sudo apt-get install -y ufw
     fi
-    
-    # Download and install ufw-docker
-    print_status "Installing ufw-docker..."
-    sudo wget -O /usr/local/bin/ufw-docker \
-        https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker
-    sudo chmod +x /usr/local/bin/ufw-docker
-    
-    # Check Docker iptables is enabled
-    if [ -f /etc/docker/daemon.json ]; then
-        if grep -q '"iptables": false' /etc/docker/daemon.json; then
-            print_warning "Docker iptables is disabled. Enabling it for ufw-docker compatibility..."
-            sudo sed -i '/"iptables": false/d' /etc/docker/daemon.json
-            sudo systemctl restart docker
+
+    # Fix iptables compatibility for UFW
+    print_status "Checking iptables compatibility..."
+    if iptables --version 2>/dev/null | grep -q "nf_tables"; then
+        print_warning "Detected nf_tables. Switching to iptables-legacy for UFW compatibility..."
+        sudo update-alternatives --set iptables /usr/sbin/iptables-legacy 2>/dev/null || true
+        sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy 2>/dev/null || true
+        sudo update-alternatives --set arptables /usr/sbin/arptables-legacy 2>/dev/null || true
+        sudo update-alternatives --set ebtables /usr/sbin/ebtables-legacy 2>/dev/null || true
+        print_success "Switched to iptables-legacy"
+    fi
+
+    # Check if we have real Docker or Podman alias
+    local has_real_docker=false
+    if [ -f /usr/bin/docker ]; then
+        # Check if docker is a shell script (Podman alias)
+        if file /usr/bin/docker | grep -q "shell script"; then
+            print_warning "Detected Podman alias for Docker. ufw-docker requires real Docker."
+            print_status "Skipping ufw-docker installation. Use Podman's own firewall rules."
+        else
+            # Check if docker daemon is running
+            if systemctl is-active --quiet docker; then
+                has_real_docker=true
+                print_success "Real Docker detected and running"
+            else
+                print_warning "Docker is installed but not running"
+            fi
         fi
     fi
-    
-    # Configure UFW to work with Docker
-    print_status "Configuring UFW rules for Docker..."
-    
-    # Backup UFW configuration
-    backup_file "/etc/ufw/after.rules"
-    
-    # Add Docker rules to UFW
-    if ! grep -q "DOCKER-USER" /etc/ufw/after.rules; then
-        cat << 'EOF' | sudo tee -a /etc/ufw/after.rules > /dev/null
+
+    # Only install ufw-docker if we have real Docker
+    if [ "$has_real_docker" = true ]; then
+        # Download and install ufw-docker
+        print_status "Installing ufw-docker..."
+        sudo wget -q -O /usr/local/bin/ufw-docker \
+            https://github.com/chaifeng/ufw-docker/raw/master/ufw-docker
+        sudo chmod +x /usr/local/bin/ufw-docker
+
+        # Check Docker iptables is enabled
+        if [ -f /etc/docker/daemon.json ]; then
+            if grep -q '"iptables": false' /etc/docker/daemon.json; then
+                print_warning "Docker iptables is disabled. Enabling it for ufw-docker compatibility..."
+                sudo sed -i '/"iptables": false/d' /etc/docker/daemon.json
+                sudo systemctl restart docker
+            fi
+        fi
+
+        # Backup UFW configuration
+        backup_file "/etc/ufw/after.rules"
+
+        # Add Docker rules to UFW
+        if ! grep -q "DOCKER-USER" /etc/ufw/after.rules; then
+            cat << 'EOF' | sudo tee -a /etc/ufw/after.rules > /dev/null
 
 # BEGIN UFW AND DOCKER
 *filter
@@ -1598,29 +1708,52 @@ configure_ufw_docker() {
 COMMIT
 # END UFW AND DOCKER
 EOF
+        fi
+
+        # Check if UFW is enabled before running ufw-docker install
+        if sudo ufw status | grep -q "Status: active"; then
+            # Install ufw-docker properly
+            print_status "Installing ufw-docker rules..."
+            sudo /usr/local/bin/ufw-docker install 2>/dev/null || {
+                print_warning "ufw-docker install failed. This is normal if Docker is not fully configured yet."
+            }
+        else
+            print_warning "UFW not yet active. Skipping ufw-docker install for now."
+        fi
+
+        # Update Docker networks if Docker is running
+        if docker network ls &>/dev/null 2>&1; then
+            print_status "Updating UFW rules for Docker networks..."
+            sudo /usr/local/bin/ufw-docker install --docker-subnets 2>/dev/null || true
+        fi
     fi
-    
-    # Install ufw-docker properly
-    sudo /usr/local/bin/ufw-docker install
-    
-    # Update Docker networks
-    if docker network ls &>/dev/null; then
-        print_status "Updating UFW rules for Docker networks..."
-        sudo /usr/local/bin/ufw-docker install --docker-subnets
-    fi
-    
+
     # Set UFW defaults
+    print_status "Setting UFW default policies..."
     sudo ufw default deny incoming
     sudo ufw default allow outgoing
-    sudo ufw default deny routed
-    
-    # Allow SSH on Tailscale interface only (will be configured later)
-    # For now, keep SSH open to prevent lockout
-    sudo ufw allow 22/tcp comment 'SSH - Will be restricted to Tailscale'
-    
-    # Enable UFW
-    echo "y" | sudo ufw --force enable
-    
+    sudo ufw default deny routed 2>/dev/null || sudo ufw default allow routed
+
+    # Allow SSH on all interfaces for now to prevent lockout
+    sudo ufw allow 22/tcp comment 'SSH - Will be restricted to Tailscale' 2>/dev/null || true
+
+    # Enable UFW with force flag to avoid interactive prompt
+    print_status "Enabling UFW..."
+    if ! sudo ufw status | grep -q "Status: active"; then
+        echo "y" | sudo ufw --force enable || {
+            print_error "Failed to enable UFW. Trying alternative method..."
+            sudo ufw --force enable || {
+                print_error "UFW enable failed. Manual intervention may be required."
+                return 1
+            }
+        }
+    else
+        print_success "UFW is already active"
+    fi
+
+    # Show final status
+    sudo ufw status verbose
+
     log_action "UFW-Docker configuration completed" "SUCCESS"
     print_success "UFW configured with Docker integration"
 }
@@ -2366,9 +2499,78 @@ EOF
 
 # Function 18: Install and configure CrowdSec
 install_crowdsec() {
-    print_status "Installing CrowdSec with Traefik integration..."
+    print_status "Installing CrowdSec with Coolify/Traefik integration..."
     log_action "Starting CrowdSec installation" "INFO"
-    
+
+    # Always install native CrowdSec on host (as per Coolify tutorial)
+    print_status "Installing CrowdSec on host machine..."
+    curl -s https://install.crowdsec.net | sudo bash
+    sudo apt-get install -y crowdsec
+
+    # Check for available port (8080 is default, but may conflict with Traefik or other services)
+    local crowdsec_port=8080
+    print_status "Checking port availability for CrowdSec API..."
+
+    # Check if port 8080 is already in use
+    if ss -tuln | grep -q ":8080 "; then
+        print_warning "Port 8080 is already in use. Finding alternative port..."
+        # Try ports 8090-8099
+        for port in {8090..8099}; do
+            if ! ss -tuln | grep -q ":$port "; then
+                crowdsec_port=$port
+                print_success "Using port $port for CrowdSec API"
+                break
+            fi
+        done
+    else
+        print_success "Port 8080 is available for CrowdSec API"
+    fi
+
+    # Configure CrowdSec to listen on all interfaces for Traefik container access
+    print_status "Configuring CrowdSec to listen on 0.0.0.0:$crowdsec_port..."
+    sudo sed -i "s/listen_uri: 127.0.0.1:8080/listen_uri: 0.0.0.0:$crowdsec_port/" /etc/crowdsec/config.yaml
+
+    # Save the port for later reference
+    echo "CROWDSEC_PORT=$crowdsec_port" | sudo tee "$ZERO_TRUST_DIR/configs/crowdsec/port.conf" > /dev/null
+
+    # Install firewall bouncer
+    print_status "Installing CrowdSec firewall bouncer (nftables)..."
+    sudo apt-get install -y crowdsec-firewall-bouncer-nftables
+
+    # Enable the correct service (service name differs from package name)
+    print_status "Enabling CrowdSec firewall bouncer service..."
+    if systemctl list-unit-files | grep -q "crowdsec-firewall-bouncer.service"; then
+        sudo systemctl enable crowdsec-firewall-bouncer --now
+        print_success "CrowdSec firewall bouncer service enabled"
+    else
+        print_warning "Could not find firewall bouncer service, it may start automatically"
+    fi
+
+    # Install Traefik collections
+    print_status "Installing CrowdSec Traefik collections..."
+    sudo cscli collections install crowdsecurity/traefik
+
+    # Configure Traefik log acquisition
+    print_status "Configuring Traefik log acquisition..."
+    cat << 'EOF' | sudo tee -a /etc/crowdsec/acquis.yaml > /dev/null
+filenames:
+  - /data/coolify/proxy/access.log
+labels:
+  type: traefik
+  log_type: http_access-log
+EOF
+
+    # Generate bouncer API key for Traefik
+    print_status "Generating Traefik bouncer API key..."
+    local bouncer_key=$(sudo cscli bouncers add traefik-bouncer -o raw)
+    echo "$bouncer_key" | sudo tee "$ZERO_TRUST_DIR/configs/crowdsec/traefik-bouncer-key.txt" > /dev/null
+    sudo chmod 600 "$ZERO_TRUST_DIR/configs/crowdsec/traefik-bouncer-key.txt"
+
+    print_success "CrowdSec host agent installed and configured"
+
+    # Skip Docker-based installation
+    if false; then
+
     # Create CrowdSec Docker Compose configuration
     print_status "Creating CrowdSec Docker configuration..."
     
@@ -2415,15 +2617,24 @@ networks:
 EOF
     
     # Ensure internal network exists
-    ensure_docker_network "internal"
-    
+    if ! ensure_docker_network "internal"; then
+        print_error "Failed to create required network. Skipping container-based CrowdSec."
+        return 1
+    fi
+
     # Start CrowdSec
     print_status "Starting CrowdSec..."
     cd "$ZERO_TRUST_DIR/configs/crowdsec"
     local docker_compose_cmd=$(get_docker_compose_cmd)
     if [ -z "$docker_compose_cmd" ]; then
-        print_error "Docker Compose is not installed"
-        return 1
+        print_error "Docker Compose is not installed. Installing native CrowdSec instead..."
+
+        # Fallback to native installation
+        curl -s https://packagecloud.io/install/repositories/crowdsec/crowdsec/script.deb.sh | sudo bash
+        sudo apt-get install -y crowdsec crowdsec-firewall-bouncer-nftables
+
+        print_success "CrowdSec installed in native mode"
+        return 0
     fi
     eval "sudo $docker_compose_cmd up -d"
     
@@ -2440,21 +2651,48 @@ EOF
     curl -s https://packagecloud.io/install/repositories/crowdsec/crowdsec/script.deb.sh | sudo bash
     sudo apt-get install -y crowdsec-firewall-bouncer-nftables
     
+    fi
+
+    # Restart CrowdSec to apply all configurations
+    print_status "Restarting CrowdSec service..."
+    sudo systemctl restart crowdsec
+
     log_action "CrowdSec installation completed" "SUCCESS"
-    print_success "CrowdSec installed with Traefik integration"
+    print_success "CrowdSec installed with Coolify/Traefik integration"
+    print_warning "Note: Traefik configuration still needs to be updated manually in Coolify"
+    print_status "Bouncer API key saved to: $ZERO_TRUST_DIR/configs/crowdsec/traefik-bouncer-key.txt"
 }
 
 # Function 19: Configure Traefik with security middleware
 configure_traefik_security() {
-    print_status "Configuring Traefik with security middleware..."
+    print_status "Configuring Traefik with CrowdSec security middleware..."
     log_action "Starting Traefik security configuration" "INFO"
-    
+
     # Create Traefik configuration
-    local traefik_dir="$ZERO_TRUST_DIR/configs/docker/traefik"
+    local traefik_dir="$ZERO_TRUST_DIR/configs/traefik"
     sudo mkdir -p "$traefik_dir"
-    
-    # Get bouncer key
+
+    # Get bouncer key and port
     local bouncer_key=$(cat "$ZERO_TRUST_DIR/configs/crowdsec/traefik-bouncer-key.txt" 2>/dev/null || echo "")
+    local crowdsec_port=$(grep "CROWDSEC_PORT=" "$ZERO_TRUST_DIR/configs/crowdsec/port.conf" 2>/dev/null | cut -d= -f2 || echo "8080")
+
+    if [ -z "$bouncer_key" ]; then
+        print_warning "CrowdSec bouncer key not found. Traefik integration may not work."
+    fi
+
+    # Create CrowdSec plugin configuration for Traefik
+    print_status "Creating CrowdSec plugin configuration..."
+    cat << EOF | sudo tee "$traefik_dir/crowdsec-plugin.yaml" > /dev/null
+http:
+  middlewares:
+    crowdsec:
+      plugin:
+        crowdsec-bouncer:
+          crowdsecMode: live
+          crowdsecLapiHost: 'host.docker.internal:$crowdsec_port'
+          crowdsecLapiKey: '$bouncer_key'
+          enabled: true
+EOF
     
     # Create Traefik static configuration
     cat << 'EOF' | sudo tee "$traefik_dir/traefik.yml" > /dev/null
@@ -2535,8 +2773,51 @@ EOF
     # Ensure internal network exists
     ensure_docker_network "internal"
     
+    # Create instructions for Coolify Traefik configuration
+    print_status "Creating Coolify Traefik configuration instructions..."
+    cat << EOF | sudo tee "$traefik_dir/coolify-traefik-instructions.txt" > /dev/null
+COOLIFY TRAEFIK CONFIGURATION INSTRUCTIONS
+==========================================
+
+To complete CrowdSec integration with Coolify's Traefik:
+
+1. Add these command arguments to Coolify's Traefik container:
+
+   # Enable CrowdSec middleware on all entrypoints
+   - '--entrypoints.http.http.middlewares=crowdsec@file'
+   - '--entrypoints.https.http.middlewares=crowdsec@file'
+
+   # Enable CrowdSec plugin
+   - '--experimental.plugins.crowdsec-bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin'
+   - '--experimental.plugins.crowdsec-bouncer.version=v1.2.1'
+
+   # Enable access logging for CrowdSec to analyze
+   - '--accesslog=true'
+   - '--accesslog.format=json'
+   - '--accesslog.bufferingsize=0'
+   - '--accesslog.filepath=/traefik/access.log'
+
+   # If using Cloudflare, add these:
+   - '--entryPoints.http.forwardedHeaders.insecure=true'
+   - '--entryPoints.https.forwardedHeaders.insecure=true'
+
+2. Mount the CrowdSec plugin configuration:
+   - Source: $traefik_dir/crowdsec-plugin.yaml
+   - Target: /etc/traefik/crowdsec-plugin.yaml
+
+3. Restart Coolify Traefik:
+   docker restart coolify-proxy
+
+CrowdSec API Port: $crowdsec_port
+Bouncer Key Location: $ZERO_TRUST_DIR/configs/crowdsec/traefik-bouncer-key.txt
+EOF
+
+    print_success "Instructions saved to: $traefik_dir/coolify-traefik-instructions.txt"
+
     log_action "Traefik security configuration completed" "SUCCESS"
     print_success "Traefik configured with security middleware"
+    print_warning "IMPORTANT: You need to manually update Coolify's Traefik configuration"
+    print_status "See instructions at: $traefik_dir/coolify-traefik-instructions.txt"
 }
 
 # Function 20: Install monitoring tools
@@ -2854,7 +3135,77 @@ EOF
     print_success "Security documentation generated"
 }
 
-# Function 23: Install rootless Docker
+# Function 23: Install Docker CE
+install_docker_ce() {
+    print_status "Installing Docker CE..."
+    log_action "Starting Docker CE installation" "INFO"
+
+    # Check if docker command exists and if it's Podman alias
+    if [ -f /usr/bin/docker ]; then
+        if file /usr/bin/docker | grep -q "shell script"; then
+            print_warning "Detected Podman alias for Docker. Removing to install real Docker..."
+            sudo rm /usr/bin/docker
+        fi
+    fi
+
+    # Check if Docker is already installed
+    if systemctl is-active --quiet docker 2>/dev/null; then
+        print_warning "Docker CE is already installed and running"
+        return 0
+    fi
+
+    # Remove any old Docker installations
+    print_status "Removing old Docker installations if any..."
+    sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+
+    # Install prerequisites
+    print_status "Installing prerequisites..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+
+    # Add Docker's official GPG key
+    print_status "Adding Docker GPG key..."
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    # Set up the repository
+    print_status "Setting up Docker repository..."
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # Install Docker CE
+    print_status "Installing Docker CE..."
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # Add user to docker group
+    if [ -n "$MAIN_USER" ]; then
+        print_status "Adding $MAIN_USER to docker group..."
+        sudo usermod -aG docker "$MAIN_USER"
+    fi
+
+    # Enable and start Docker
+    print_status "Starting Docker service..."
+    sudo systemctl enable docker
+    sudo systemctl start docker
+
+    # Verify installation
+    if sudo docker run --rm hello-world &>/dev/null; then
+        print_success "Docker CE installed and working"
+    else
+        print_warning "Docker installed but test failed"
+    fi
+
+    log_action "Docker CE installation completed" "SUCCESS"
+    return 0
+}
+
+# Function 24: Install rootless Docker
 install_rootless_docker() {
     print_status "Installing Docker in rootless mode..."
     log_action "Starting rootless Docker installation" "INFO"
@@ -3302,6 +3653,23 @@ setup_zero_trust_complete() {
         install_rootless_docker
     elif [[ "$ENABLE_PODMAN" == true ]]; then
         install_podman
+    else
+        # Install standard Docker CE if no other container runtime is selected
+        # Check if we need real Docker (not Podman alias)
+        local need_docker=false
+        if [ -f /usr/bin/docker ]; then
+            if file /usr/bin/docker | grep -q "shell script"; then
+                print_status "Detected Podman alias. Installing real Docker CE..."
+                need_docker=true
+            fi
+        else
+            print_status "No container runtime detected. Installing Docker CE..."
+            need_docker=true
+        fi
+
+        if [ "$need_docker" = true ]; then
+            install_docker_ce
+        fi
     fi
     
     echo -e "\n${YELLOW}▶ PHASE 4: Firewall Configuration${NC}"
